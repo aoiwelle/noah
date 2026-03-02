@@ -34,7 +34,8 @@ echo "==> Running tauri build..."
 pnpm --filter @itman/desktop tauri build
 
 # ── Locate artifacts ──────────────────────────────────────────────────
-BUNDLE_DIR="apps/desktop/src-tauri/target/release/bundle"
+# Workspace root target dir (Cargo workspace puts output here, not per-crate)
+BUNDLE_DIR="target/release/bundle"
 ARTIFACTS=()
 
 # macOS .dmg
