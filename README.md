@@ -1,3 +1,11 @@
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT"></a>
+</p>
+
+<p align="center">
+  <strong>English</strong> | <a href="docs/README.es.md">Español</a> | <a href="docs/README.ja.md">日本語</a> | <a href="docs/README.zh-CN.md">中文</a>
+</p>
+
 # Noah
 
 **IT support that actually fixes things.** Noah is a desktop app that diagnoses and resolves computer problems in plain English. Describe what's wrong, Noah figures it out, shows you the plan, and fixes it — one click.
