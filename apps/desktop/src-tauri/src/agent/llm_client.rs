@@ -7,6 +7,7 @@ const MODEL: &str = "claude-sonnet-4-20250514";
 const TITLE_MODEL: &str = "claude-haiku-4-5-20251001";
 const API_VERSION: &str = "2023-06-01";
 const MAX_TOKENS: u32 = 4096;
+const REQUEST_TIMEOUT_SECS: u64 = 90;
 
 // ── Request types ──────────────────────────────────────────────────────
 
@@ -103,12 +104,25 @@ pub struct LlmClient {
     client: reqwest::Client,
 }
 
+/// Map an HTTP status code from the Anthropic API to a user-friendly error message.
+fn friendly_api_error(status: reqwest::StatusCode, body: &str) -> String {
+    match status.as_u16() {
+        401 => "Your API key is invalid or has been revoked. Please check it in Settings.".to_string(),
+        403 => "Your API key doesn't have permission for this request. Check your Anthropic account.".to_string(),
+        429 => "Too many requests — Claude is rate-limited. Wait a moment and try again.".to_string(),
+        500 | 502 | 503 => "Claude is having temporary issues. Please try again in a minute.".to_string(),
+        529 => "Claude is currently overloaded. Please try again in a few minutes.".to_string(),
+        _ => format!("Unexpected API error ({}): {}", status, body),
+    }
+}
+
 impl LlmClient {
     pub fn new(api_key: String) -> Self {
-        Self {
-            api_key,
-            client: reqwest::Client::new(),
-        }
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(REQUEST_TIMEOUT_SECS))
+            .build()
+            .unwrap_or_else(|_| reqwest::Client::new());
+        Self { api_key, client }
     }
 
     pub fn set_api_key(&mut self, key: String) {
@@ -143,8 +157,10 @@ impl LlmClient {
             .await
             .context("Title generation request failed")?;
 
-        if !resp.status().is_success() {
-            anyhow::bail!("Title generation API error: {}", resp.status());
+        let status = resp.status();
+        if !status.is_success() {
+            let error_body = resp.text().await.unwrap_or_default();
+            anyhow::bail!("{}", friendly_api_error(status, &error_body));
         }
 
         let response: Response = resp
@@ -187,7 +203,15 @@ impl LlmClient {
             .json(&body)
             .send()
             .await
-            .context("Failed to send request to Anthropic API")?;
+            .map_err(|e| {
+                if e.is_timeout() {
+                    anyhow::anyhow!("Claude is taking too long to respond. Please try again.")
+                } else if e.is_connect() {
+                    anyhow::anyhow!("Can't reach Claude — check your internet connection.")
+                } else {
+                    anyhow::anyhow!("Can't reach Claude — check your internet connection.")
+                }
+            })?;
 
         let status = resp.status();
         if !status.is_success() {
@@ -195,7 +219,7 @@ impl LlmClient {
                 .text()
                 .await
                 .unwrap_or_else(|_| "unknown error".to_string());
-            anyhow::bail!("Anthropic API error ({}): {}", status, error_body);
+            anyhow::bail!("{}", friendly_api_error(status, &error_body));
         }
 
         let response: Response = resp

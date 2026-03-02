@@ -9,6 +9,12 @@ interface UseAgentReturn {
   isProcessing: boolean;
 }
 
+/** Strip "Agent error: " prefix from backend errors since we already show friendly messages. */
+function cleanError(err: unknown): string {
+  const raw = err instanceof Error ? err.message : String(err);
+  return raw.replace(/^Agent error:\s*/i, "");
+}
+
 export function useAgent(): UseAgentReturn {
   const [isProcessing, setIsProcessing] = useState(false);
   const addMessage = useChatStore((s) => s.addMessage);
@@ -38,7 +44,7 @@ export function useAgent(): UseAgentReturn {
         console.error("Agent communication error:", err);
         addMessage({
           role: "system",
-          content: `Error communicating with agent: ${err instanceof Error ? err.message : String(err)}`,
+          content: cleanError(err),
         });
       } finally {
         setIsProcessing(false);
@@ -69,7 +75,7 @@ export function useAgent(): UseAgentReturn {
         console.error("Agent communication error:", err);
         addMessage({
           role: "system",
-          content: `Error: ${err instanceof Error ? err.message : String(err)}`,
+          content: cleanError(err),
         });
       } finally {
         setIsProcessing(false);
