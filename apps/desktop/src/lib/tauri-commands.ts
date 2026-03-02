@@ -99,6 +99,10 @@ export async function getSessionMessages(
   return await invoke<MessageRecord[]>("get_session_messages", { sessionId });
 }
 
+export async function getSessionSummary(sessionId: string): Promise<string> {
+  return await invoke<string>("get_session_summary", { sessionId });
+}
+
 export async function hasApiKey(): Promise<boolean> {
   return await invoke<boolean>("has_api_key");
 }

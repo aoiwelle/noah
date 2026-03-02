@@ -180,6 +180,53 @@ impl LlmClient {
         Ok(title)
     }
 
+    /// Generate a brief session summary using Haiku.
+    pub async fn generate_session_summary(&self, messages_text: &str) -> Result<String> {
+        let body = ApiRequest {
+            model: TITLE_MODEL.to_string(),
+            max_tokens: 200,
+            system: "Summarize this IT support session in 2-3 short bullet points. Focus on: what was the problem, what was done, and the outcome. Be concise. Use plain language.".to_string(),
+            messages: vec![Message {
+                role: "user".to_string(),
+                content: MessageContent::Text(messages_text.to_string()),
+            }],
+            tools: vec![],
+        };
+
+        let resp = self
+            .client
+            .post(API_URL)
+            .header("x-api-key", &self.api_key)
+            .header("anthropic-version", API_VERSION)
+            .header("content-type", "application/json")
+            .json(&body)
+            .send()
+            .await
+            .context("Summary generation request failed")?;
+
+        let status = resp.status();
+        if !status.is_success() {
+            let error_body = resp.text().await.unwrap_or_default();
+            anyhow::bail!("{}", friendly_api_error(status, &error_body));
+        }
+
+        let response: Response = resp
+            .json()
+            .await
+            .context("Failed to parse summary response")?;
+
+        let summary = response
+            .content
+            .iter()
+            .find_map(|b| match b {
+                ResponseBlock::Text { text } => Some(text.trim().to_string()),
+                _ => None,
+            })
+            .unwrap_or_else(|| "Session completed.".to_string());
+
+        Ok(summary)
+    }
+
     pub async fn send_message(
         &self,
         messages: Vec<Message>,

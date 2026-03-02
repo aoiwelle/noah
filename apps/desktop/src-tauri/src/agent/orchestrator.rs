@@ -124,6 +124,11 @@ impl Orchestrator {
         self.llm.clone()
     }
 
+    /// Generate a session summary using Haiku.
+    pub async fn generate_session_summary(&self, transcript: &str) -> anyhow::Result<String> {
+        self.llm.generate_session_summary(transcript).await
+    }
+
     // ── Approval flow ──────────────────────────────────────────────────
 
     /// Resolve a pending approval. Returns false if the approval_id was not found.

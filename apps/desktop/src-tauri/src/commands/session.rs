@@ -93,6 +93,44 @@ pub async fn get_session_messages(
         .map_err(|e| format!("Failed to load messages: {}", e))
 }
 
+#[tauri::command]
+pub async fn get_session_summary(
+    state: State<'_, AppState>,
+    session_id: String,
+) -> Result<String, String> {
+    // Load messages from DB
+    let messages = {
+        let conn = state.db.lock().await;
+        journal::get_messages(&conn, &session_id)
+            .map_err(|e| format!("Failed to load messages: {}", e))?
+    };
+
+    if messages.is_empty() {
+        return Ok("No messages in this session.".to_string());
+    }
+
+    // Build a condensed transcript for the LLM
+    let transcript: String = messages
+        .iter()
+        .filter(|m| m.role == "user" || m.role == "assistant")
+        .map(|m| format!("{}: {}", m.role, m.content))
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    // Truncate to ~2000 chars to keep Haiku call fast
+    let truncated = if transcript.len() > 2000 {
+        format!("{}...", &transcript[..2000])
+    } else {
+        transcript
+    };
+
+    let orchestrator = state.orchestrator.lock().await;
+    orchestrator
+        .generate_session_summary(&truncated)
+        .await
+        .map_err(|e| format!("Failed to generate summary: {}", e))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

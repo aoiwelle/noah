@@ -11,6 +11,7 @@ import { SessionHistory } from "./components/SessionHistory";
 import { DebugPanel } from "./components/DebugPanel";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { UpdateBanner } from "./components/UpdateBanner";
+import { SessionSummary } from "./components/SessionSummary";
 import { SetupScreen } from "./components/SetupScreen";
 import { useDebugStore, type DebugEvent } from "./stores/debugStore";
 
@@ -82,6 +83,7 @@ function MainApp() {
     <div className="flex flex-col h-screen bg-bg-primary text-text-primary">
       <UpdateBanner />
       <SessionBar session={session} />
+      <SessionSummary />
       <ChatPanel />
       <DebugPanel />
       <SettingsPanel />
