@@ -4,6 +4,22 @@
 
 No tickets. No hold music. No Googling error codes.
 
+<p align="center">
+  <img src="docs/images/noah-diagnose.png" width="420" alt="Noah diagnosing a slow computer — finds three runaway CloudSync processes eating CPU" />
+  &nbsp;&nbsp;
+  <img src="docs/images/noah-fix.png" width="420" alt="Noah fixes the issue and confirms the computer is back to normal" />
+</p>
+<p align="center"><i>You say "my computer is slow." Noah finds the problem, explains the fix, and handles it.</i></p>
+
+## How it works
+
+1. **Describe the problem** — in your own words, no jargon needed
+2. **Noah investigates** — runs diagnostics silently in the background
+3. **Noah shows you the plan** — what it found and what it wants to do
+4. **You click one button** — Noah handles the rest and confirms the fix
+
+Every action is logged. Dangerous operations require your explicit approval. Noah never touches boot config, firmware, security software, or system-protected files.
+
 ## The problems Noah solves
 
 **"My internet is slow"** — Noah checks your network, DNS, and connectivity. Finds the issue (bad DNS server, stale cache, wrong network). Fixes it.
@@ -15,15 +31,6 @@ No tickets. No hold music. No Googling error codes.
 **"An app keeps crashing"** — Noah pulls the logs, identifies the pattern, clears corrupted caches, and gets you back to work.
 
 **"I've had this problem before"** — Noah remembers. It saves what it learns about your system — device details, past fixes, your preferences — so it gets smarter every session.
-
-## How it works
-
-1. **Describe the problem** in your own words
-2. **Noah investigates** — runs diagnostics silently in the background
-3. **Noah shows you the plan** — what it found and what it wants to do
-4. **You click one button** — Noah handles the rest and confirms the fix
-
-Every action is logged. Dangerous operations require your explicit approval. Noah never touches boot config, firmware, security software, or system-protected files.
 
 ## Get started
 
