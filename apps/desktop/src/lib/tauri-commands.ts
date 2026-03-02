@@ -121,3 +121,7 @@ export async function deleteArtifact(artifactId: string): Promise<void> {
 export async function getAppVersion(): Promise<string> {
   return await invoke<string>("get_app_version");
 }
+
+export async function cancelProcessing(): Promise<void> {
+  await invoke<void>("cancel_processing");
+}

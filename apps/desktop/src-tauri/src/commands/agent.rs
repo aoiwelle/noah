@@ -1,3 +1,4 @@
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
 use tauri::State;
@@ -96,4 +97,11 @@ pub async fn deny_action(
     } else {
         Ok(false)
     }
+}
+
+#[tauri::command]
+pub async fn cancel_processing(state: State<'_, AppState>) -> Result<(), String> {
+    // Set the cancellation flag — doesn't require the orchestrator lock.
+    state.cancelled.store(true, Ordering::SeqCst);
+    Ok(())
 }

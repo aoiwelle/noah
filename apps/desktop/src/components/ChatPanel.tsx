@@ -516,7 +516,8 @@ export function ChatPanel() {
     (s) => s.returnToCurrentSession,
   );
   const pastSessions = useSessionStore((s) => s.pastSessions);
-  const { sendMessage, sendConfirmation, isProcessing } = useAgent();
+  const { sendMessage, sendConfirmation, cancelProcessing, isProcessing } =
+    useAgent();
 
   const [input, setInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -636,32 +637,54 @@ export function ChatPanel() {
               />
               <div className="flex items-center gap-1 pr-2 pb-1.5">
                 <VoiceButton onTranscript={handleVoiceTranscript} />
-                <button
-                  onClick={handleSubmit}
-                  disabled={!input.trim() || isProcessing}
-                  className={`
-                    flex items-center justify-center w-9 h-9 rounded-lg
-                    transition-all duration-200 cursor-pointer
-                    ${
-                      input.trim() && !isProcessing
-                        ? "bg-accent-blue text-white hover:bg-accent-blue/80"
-                        : "text-text-muted cursor-not-allowed"
-                    }
-                  `}
-                >
-                  <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 16 16"
-                    fill="none"
-                    xmlns="http://www.w3.org/2000/svg"
+                {isProcessing ? (
+                  <button
+                    onClick={cancelProcessing}
+                    title="Stop processing"
+                    className="flex items-center justify-center w-9 h-9 rounded-lg bg-accent-red/15 text-accent-red hover:bg-accent-red/25 transition-all duration-200 cursor-pointer"
                   >
-                    <path
-                      d="M2 8L14 2L8 14V8H2Z"
-                      fill="currentColor"
-                    />
-                  </svg>
-                </button>
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 14 14"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <rect
+                        x="3"
+                        y="3"
+                        width="8"
+                        height="8"
+                        rx="1.5"
+                        fill="currentColor"
+                      />
+                    </svg>
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleSubmit}
+                    disabled={!input.trim()}
+                    className={`
+                      flex items-center justify-center w-9 h-9 rounded-lg
+                      transition-all duration-200 cursor-pointer
+                      ${
+                        input.trim()
+                          ? "bg-accent-blue text-white hover:bg-accent-blue/80"
+                          : "text-text-muted cursor-not-allowed"
+                      }
+                    `}
+                  >
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 16 16"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path d="M2 8L14 2L8 14V8H2Z" fill="currentColor" />
+                    </svg>
+                  </button>
+                )}
               </div>
             </div>
             <p className="text-[10px] text-text-muted mt-1.5 text-center">

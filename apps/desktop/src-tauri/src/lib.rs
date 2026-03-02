@@ -7,6 +7,7 @@ mod safety;
 
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tauri::Manager;
 use tokio::sync::{oneshot, Mutex};
@@ -23,6 +24,8 @@ pub struct AppState {
     pub db: Arc<Mutex<rusqlite::Connection>>,
     /// Path to the app data directory (for saving config).
     pub app_dir: PathBuf,
+    /// Cancellation flag — can be set without holding the orchestrator lock.
+    pub cancelled: Arc<AtomicBool>,
 }
 
 /// Load the API key: config file first, then env var.
@@ -90,6 +93,7 @@ pub fn run() {
             // Build the orchestrator.
             let orchestrator =
                 Orchestrator::new(llm, router, os_context, pending_approvals.clone(), db_arc.clone());
+            let cancelled = orchestrator.cancelled_flag();
 
             // Manage shared state.
             app.manage(AppState {
@@ -97,6 +101,7 @@ pub fn run() {
                 pending_approvals,
                 db: db_arc,
                 app_dir,
+                cancelled,
             });
 
             Ok(())
@@ -110,6 +115,7 @@ pub fn run() {
             commands::agent::send_message,
             commands::agent::approve_action,
             commands::agent::deny_action,
+            commands::agent::cancel_processing,
             commands::safety::get_changes,
             commands::safety::undo_change,
             commands::settings::has_api_key,

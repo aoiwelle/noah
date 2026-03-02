@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
@@ -64,6 +65,8 @@ pub struct Orchestrator {
     pending_approvals: PendingApprovals,
     os_context: String,
     db: Arc<Mutex<rusqlite::Connection>>,
+    /// Set to true to cancel the current agentic loop.
+    cancelled: Arc<AtomicBool>,
 }
 
 pub type PendingApprovals = Arc<Mutex<HashMap<String, oneshot::Sender<bool>>>>;
@@ -83,6 +86,7 @@ impl Orchestrator {
             pending_approvals,
             os_context,
             db,
+            cancelled: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -133,6 +137,16 @@ impl Orchestrator {
         }
     }
 
+    /// Signal cancellation of the current agentic loop.
+    pub fn cancel(&self) {
+        self.cancelled.store(true, Ordering::SeqCst);
+    }
+
+    /// Get a clone of the cancellation flag for external cancellation.
+    pub fn cancelled_flag(&self) -> Arc<AtomicBool> {
+        self.cancelled.clone()
+    }
+
     // ── Agentic loop ───────────────────────────────────────────────────
 
     /// Send a user message and run the agentic loop until a text response
@@ -166,12 +180,21 @@ impl Orchestrator {
         let system = prompts::system_prompt(&self.os_context, &artifacts_ctx);
         let tool_defs = self.router.tool_definitions();
 
+        // Reset cancellation flag at the start of each user message.
+        self.cancelled.store(false, Ordering::SeqCst);
+
         // Accumulate text across all loop iterations so we don't lose text
         // from turns where the LLM returns both text AND tool calls.
         let mut all_text_parts: Vec<String> = Vec::new();
 
         // Agentic loop: keep calling the LLM until we get a text-only response.
         loop {
+            // Check for cancellation before each iteration.
+            if self.cancelled.load(Ordering::SeqCst) {
+                all_text_parts.push("[INFO] Stopped by user.".to_string());
+                return Ok(all_text_parts.join("\n"));
+            }
+
             // Clone messages for the LLM call to avoid borrow issues.
             let messages = self.sessions[session_id].messages.clone();
 
@@ -279,6 +302,16 @@ impl Orchestrator {
             let mut tool_result_blocks: Vec<ContentBlock> = Vec::new();
 
             for (tool_use_id, tool_name, tool_input) in tool_uses {
+                // Check for cancellation between tool calls.
+                if self.cancelled.load(Ordering::SeqCst) {
+                    tool_result_blocks.push(ContentBlock::ToolResult {
+                        tool_use_id,
+                        content: "Cancelled by user.".to_string(),
+                        is_error: Some(true),
+                    });
+                    continue;
+                }
+
                 let tier_label = self
                     .router
                     .find_tool(&tool_name)

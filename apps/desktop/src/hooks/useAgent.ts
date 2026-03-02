@@ -6,6 +6,7 @@ import * as commands from "../lib/tauri-commands";
 interface UseAgentReturn {
   sendMessage: (text: string) => Promise<void>;
   sendConfirmation: (messageId: string) => Promise<void>;
+  cancelProcessing: () => Promise<void>;
   isProcessing: boolean;
 }
 
@@ -84,5 +85,13 @@ export function useAgent(): UseAgentReturn {
     [sessionId, addMessage, markActionTaken, setChanges],
   );
 
-  return { sendMessage, sendConfirmation, isProcessing };
+  const cancelProcessing = useCallback(async () => {
+    try {
+      await commands.cancelProcessing();
+    } catch (err) {
+      console.error("Failed to cancel:", err);
+    }
+  }, []);
+
+  return { sendMessage, sendConfirmation, cancelProcessing, isProcessing };
 }
