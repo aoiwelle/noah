@@ -1,5 +1,5 @@
 <p align="center">
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue.svg" alt="License: Apache-2.0"></a>
 </p>
 
 <p align="center">
@@ -80,7 +80,7 @@ Your key stays on your machine. It's only used to talk to Anthropic's API direct
 
 ## License
 
-MIT
+Apache-2.0
 
 ---
 
