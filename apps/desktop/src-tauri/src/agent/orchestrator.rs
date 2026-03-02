@@ -436,8 +436,42 @@ impl Orchestrator {
             .emit("approval-request", &request)
             .context("Failed to emit approval-request event")?;
 
-        // Wait for the frontend to respond.
-        let approved = rx.await.unwrap_or(false);
+        // Wait for the frontend to respond, with a 5-minute timeout.
+        let approved = match tokio::time::timeout(
+            std::time::Duration::from_secs(300),
+            rx,
+        )
+        .await
+        {
+            Ok(result) => result.unwrap_or(false),
+            Err(_) => {
+                // Timeout expired — clean up the pending approval and auto-deny.
+                {
+                    let mut pending = self.pending_approvals.lock().await;
+                    pending.remove(&approval_id);
+                }
+
+                emit_debug(
+                    app_handle,
+                    "approval_timeout",
+                    &format!("Approval for {} timed out after 5 minutes", tool_name),
+                    json!({
+                        "approval_id": approval_id,
+                        "tool_name": tool_name,
+                    }),
+                );
+
+                // Emit a timeout event so the frontend can dismiss the approval modal.
+                {
+                    use tauri::Emitter;
+                    let _ = app_handle.emit("approval-timeout", json!({
+                        "approval_id": approval_id,
+                    }));
+                }
+
+                false
+            }
+        };
 
         Ok(approved)
     }
