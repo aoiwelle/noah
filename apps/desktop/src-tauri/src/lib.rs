@@ -1,11 +1,11 @@
 mod agent;
 mod commands;
+mod machine_context;
 mod platform;
 mod safety;
 
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::process::Command;
 use std::sync::Arc;
 use tauri::Manager;
 use tokio::sync::{oneshot, Mutex};
@@ -44,41 +44,6 @@ pub fn save_api_key(app_dir: &std::path::Path, key: &str) -> Result<(), String> 
     std::fs::write(&key_path, key).map_err(|e| format!("Failed to save API key: {}", e))
 }
 
-/// Gather OS context string to include in the system prompt.
-fn gather_os_context() -> String {
-    let sw_vers = Command::new("sw_vers")
-        .output()
-        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
-        .unwrap_or_else(|_| "Unknown OS".to_string());
-
-    let hostname = Command::new("hostname")
-        .output()
-        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
-        .unwrap_or_else(|_| "unknown".to_string());
-
-    let cpu = Command::new("sysctl")
-        .args(["-n", "machdep.cpu.brand_string"])
-        .output()
-        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
-        .unwrap_or_else(|_| "Unknown CPU".to_string());
-
-    let mem = Command::new("sysctl")
-        .args(["-n", "hw.memsize"])
-        .output()
-        .map(|o| {
-            let s = String::from_utf8_lossy(&o.stdout).trim().to_string();
-            s.parse::<u64>()
-                .map(|b| format!("{} GB", b / (1024 * 1024 * 1024)))
-                .unwrap_or(s)
-        })
-        .unwrap_or_else(|_| "Unknown".to_string());
-
-    format!(
-        "Hostname: {}\n{}\nCPU: {}\nMemory: {}",
-        hostname, sw_vers, cpu, mem
-    )
-}
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -111,7 +76,8 @@ pub fn run() {
                 Arc::new(Mutex::new(HashMap::<String, oneshot::Sender<bool>>::new()));
 
             // Gather OS context for the system prompt.
-            let os_context = gather_os_context();
+            let os_context = machine_context::MachineContext::load_or_gather(&app_dir)
+                .to_prompt_string();
 
             // Build the orchestrator.
             let orchestrator =
