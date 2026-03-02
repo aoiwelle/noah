@@ -11,15 +11,23 @@ export function SettingsPanel() {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [version, setVersion] = useState("");
+  const [telemetryEnabled, setTelemetryEnabled] = useState(false);
 
   useEffect(() => {
     if (settingsOpen) {
       commands.getAppVersion().then(setVersion).catch(() => {});
+      commands.getTelemetryConsent().then(setTelemetryEnabled).catch(() => {});
       setApiKey("");
       setSaved(false);
       setError(null);
     }
   }, [settingsOpen]);
+
+  const handleTelemetryToggle = useCallback(async () => {
+    const newValue = !telemetryEnabled;
+    setTelemetryEnabled(newValue);
+    await commands.setTelemetryConsent(newValue);
+  }, [telemetryEnabled]);
 
   const handleSaveKey = useCallback(async () => {
     const key = apiKey.trim();
@@ -112,6 +120,33 @@ export function SettingsPanel() {
               className="mt-2 w-full py-1.5 rounded-lg bg-accent-green text-white text-xs font-medium hover:bg-accent-green/80 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {saving ? "Saving..." : saved ? "Saved!" : "Update API Key"}
+            </button>
+          </section>
+
+          {/* Telemetry */}
+          <section>
+            <h3 className="text-xs font-semibold text-text-primary uppercase tracking-wider mb-2">
+              Anonymous Usage Data
+            </h3>
+            <p className="text-[11px] text-text-muted mb-2">
+              Help improve Noah by sharing anonymous usage stats (tools used,
+              session duration, error rates). No personal data or message
+              content is ever sent.
+            </p>
+            <button
+              onClick={handleTelemetryToggle}
+              className="flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-xs hover:bg-bg-tertiary transition-colors cursor-pointer"
+            >
+              <div
+                className={`w-8 h-[18px] rounded-full relative transition-colors ${telemetryEnabled ? "bg-accent-green" : "bg-bg-tertiary"}`}
+              >
+                <div
+                  className={`absolute top-[2px] w-[14px] h-[14px] rounded-full bg-white transition-all ${telemetryEnabled ? "left-[16px]" : "left-[2px]"}`}
+                />
+              </div>
+              <span className="text-text-secondary">
+                {telemetryEnabled ? "Enabled" : "Disabled"}
+              </span>
             </button>
           </section>
 

@@ -138,3 +138,18 @@ export async function getAppVersion(): Promise<string> {
 export async function cancelProcessing(): Promise<void> {
   await invoke<void>("cancel_processing");
 }
+
+export async function getTelemetryConsent(): Promise<boolean> {
+  return await invoke<boolean>("get_telemetry_consent");
+}
+
+export async function setTelemetryConsent(enabled: boolean): Promise<void> {
+  await invoke<void>("set_telemetry_consent", { enabled });
+}
+
+export async function trackEvent(
+  eventType: string,
+  data: string = "{}",
+): Promise<void> {
+  await invoke<void>("track_event", { eventType, data });
+}

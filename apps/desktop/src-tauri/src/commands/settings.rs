@@ -1,5 +1,6 @@
 use tauri::State;
 
+use crate::safety::journal;
 use crate::AppState;
 
 #[tauri::command]
@@ -23,4 +24,39 @@ pub async fn set_api_key(state: State<'_, AppState>, api_key: String) -> Result<
 #[tauri::command]
 pub async fn get_app_version() -> Result<String, String> {
     Ok(env!("CARGO_PKG_VERSION").to_string())
+}
+
+#[tauri::command]
+pub async fn get_telemetry_consent(state: State<'_, AppState>) -> Result<bool, String> {
+    let conn = state.db.lock().await;
+    let value = journal::get_setting(&conn, "telemetry_consent")
+        .map_err(|e| format!("Failed to get setting: {}", e))?;
+    Ok(value.as_deref() == Some("true"))
+}
+
+#[tauri::command]
+pub async fn set_telemetry_consent(
+    state: State<'_, AppState>,
+    enabled: bool,
+) -> Result<(), String> {
+    let conn = state.db.lock().await;
+    journal::set_setting(&conn, "telemetry_consent", if enabled { "true" } else { "false" })
+        .map_err(|e| format!("Failed to save setting: {}", e))
+}
+
+#[tauri::command]
+pub async fn track_event(
+    state: State<'_, AppState>,
+    event_type: String,
+    data: String,
+) -> Result<(), String> {
+    // Only record if telemetry is opted-in
+    let conn = state.db.lock().await;
+    let consent = journal::get_setting(&conn, "telemetry_consent")
+        .map_err(|e| format!("{}", e))?;
+    if consent.as_deref() != Some("true") {
+        return Ok(());
+    }
+    journal::record_telemetry_event(&conn, &event_type, &data)
+        .map_err(|e| format!("Failed to track event: {}", e))
 }

@@ -94,7 +94,20 @@ pub fn init_db(path: &str) -> Result<Connection> {
             created_at  TEXT NOT NULL,
             updated_at  TEXT NOT NULL
         );
-        CREATE INDEX IF NOT EXISTS idx_artifacts_category ON artifacts(category);",
+        CREATE INDEX IF NOT EXISTS idx_artifacts_category ON artifacts(category);
+
+        CREATE TABLE IF NOT EXISTS telemetry_events (
+            id          TEXT PRIMARY KEY,
+            event_type  TEXT NOT NULL,
+            data        TEXT NOT NULL DEFAULT '{}',
+            timestamp   TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_telemetry_ts ON telemetry_events(timestamp);
+
+        CREATE TABLE IF NOT EXISTS settings (
+            key   TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        );",
     )
     .context("Failed to create database tables")?;
 
@@ -538,4 +551,52 @@ mod tests {
         assert!(!obj.contains_key("toolName"));
         assert!(!obj.contains_key("undoTool"));
     }
+}
+
+// ── Telemetry & Settings ─────────────────────────────────────────────────
+
+/// Record an anonymous telemetry event (stored locally).
+pub fn record_telemetry_event(
+    conn: &Connection,
+    event_type: &str,
+    data: &str,
+) -> Result<()> {
+    let id = Uuid::new_v4().to_string();
+    let timestamp = chrono::Utc::now().to_rfc3339();
+
+    conn.execute(
+        "INSERT INTO telemetry_events (id, event_type, data, timestamp) VALUES (?1, ?2, ?3, ?4)",
+        rusqlite::params![id, event_type, data, timestamp],
+    )
+    .context("Failed to record telemetry event")?;
+
+    Ok(())
+}
+
+/// Get a setting value by key.
+pub fn get_setting(conn: &Connection, key: &str) -> Result<Option<String>> {
+    let mut stmt = conn
+        .prepare("SELECT value FROM settings WHERE key = ?1")
+        .context("Failed to prepare get_setting")?;
+
+    let mut rows = stmt
+        .query_map(rusqlite::params![key], |row| row.get::<_, String>(0))
+        .context("Failed to execute get_setting")?;
+
+    match rows.next() {
+        Some(Ok(value)) => Ok(Some(value)),
+        Some(Err(e)) => Err(e.into()),
+        None => Ok(None),
+    }
+}
+
+/// Set a setting value by key.
+pub fn set_setting(conn: &Connection, key: &str, value: &str) -> Result<()> {
+    conn.execute(
+        "INSERT OR REPLACE INTO settings (key, value) VALUES (?1, ?2)",
+        rusqlite::params![key, value],
+    )
+    .context("Failed to set setting")?;
+
+    Ok(())
 }
