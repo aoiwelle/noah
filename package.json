@@ -1,0 +1,9 @@
+{
+  "name": "itman",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm --filter @itman/desktop tauri dev",
+    "build": "pnpm --filter @itman/desktop tauri build",
+    "test": "cargo test && pnpm --filter @itman/desktop test"
+  }
+}

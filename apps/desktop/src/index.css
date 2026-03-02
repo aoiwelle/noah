@@ -1,0 +1,150 @@
+@import "tailwindcss";
+
+/* ── ITMan Dark Theme ── */
+@theme {
+  --color-bg-primary: #0f172a;
+  --color-bg-secondary: #1e293b;
+  --color-bg-tertiary: #334155;
+  --color-bg-input: #1e293b;
+  --color-bg-user-bubble: #2563eb;
+  --color-bg-assistant-bubble: #1e293b;
+  --color-bg-system-bubble: #1a1a2e;
+  --color-bg-overlay: rgba(0, 0, 0, 0.6);
+
+  --color-text-primary: #f1f5f9;
+  --color-text-secondary: #94a3b8;
+  --color-text-muted: #64748b;
+  --color-text-inverse: #ffffff;
+
+  --color-border-primary: #334155;
+  --color-border-focus: #3b82f6;
+
+  --color-accent-blue: #3b82f6;
+  --color-accent-green: #22c55e;
+  --color-accent-red: #ef4444;
+  --color-accent-amber: #f59e0b;
+  --color-accent-purple: #a855f7;
+
+  --color-status-active: #22c55e;
+  --color-status-idle: #64748b;
+  --color-status-pending: #f59e0b;
+  --color-status-running: #3b82f6;
+  --color-status-error: #ef4444;
+  --color-status-denied: #64748b;
+}
+
+/* ── Base Styles ── */
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background-color: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  font-family:
+    "Inter",
+    "SF Pro Display",
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Custom Scrollbar ── */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: var(--color-bg-tertiary);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--color-text-muted);
+}
+
+/* ── Selection ── */
+::selection {
+  background-color: var(--color-accent-blue);
+  color: var(--color-text-inverse);
+}
+
+/* ── Animations ── */
+@keyframes pulse-recording {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.1);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slide-in-right {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes thinking-dot {
+  0%,
+  80%,
+  100% {
+    opacity: 0.3;
+    transform: scale(0.8);
+  }
+  40% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-pulse-recording {
+  animation: pulse-recording 1.5s ease-in-out infinite;
+}
+
+.animate-fade-in {
+  animation: fade-in 0.2s ease-out;
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right 0.25s ease-out;
+}
+
+.thinking-dot:nth-child(1) {
+  animation: thinking-dot 1.4s ease-in-out infinite;
+}
+.thinking-dot:nth-child(2) {
+  animation: thinking-dot 1.4s ease-in-out 0.2s infinite;
+}
+.thinking-dot:nth-child(3) {
+  animation: thinking-dot 1.4s ease-in-out 0.4s infinite;
+}
