@@ -75,6 +75,15 @@ pub fn init_db(path: &str) -> Result<Connection> {
 
         CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id);
 
+        CREATE TABLE IF NOT EXISTS llm_traces (
+            id          TEXT PRIMARY KEY,
+            session_id  TEXT NOT NULL,
+            timestamp   TEXT NOT NULL,
+            request     TEXT NOT NULL,
+            response    TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_llm_traces_session ON llm_traces(session_id);
+
         CREATE TABLE IF NOT EXISTS artifacts (
             id          TEXT PRIMARY KEY,
             category    TEXT NOT NULL,
@@ -226,6 +235,23 @@ pub fn end_session_record(conn: &Connection, id: &str, ended_at: &str, message_c
 }
 
 // ── Message persistence ────────────────────────────────────────────────
+
+/// Save an LLM API trace (request + response) for debugging.
+pub fn save_llm_trace(
+    conn: &Connection,
+    session_id: &str,
+    request: &str,
+    response: &str,
+) -> Result<()> {
+    let id = Uuid::new_v4().to_string();
+    let timestamp = chrono::Utc::now().to_rfc3339();
+    conn.execute(
+        "INSERT INTO llm_traces (id, session_id, timestamp, request, response) VALUES (?1, ?2, ?3, ?4, ?5)",
+        rusqlite::params![id, session_id, timestamp, request, response],
+    )
+    .context("Failed to insert LLM trace")?;
+    Ok(())
+}
 
 /// Save a display message (user or assistant text) for session history replay.
 pub fn save_message(conn: &Connection, session_id: &str, role: &str, content: &str) -> Result<()> {

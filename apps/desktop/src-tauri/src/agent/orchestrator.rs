@@ -166,6 +166,10 @@ impl Orchestrator {
         let system = prompts::system_prompt(&self.os_context, &artifacts_ctx);
         let tool_defs = self.router.tool_definitions();
 
+        // Accumulate text across all loop iterations so we don't lose text
+        // from turns where the LLM returns both text AND tool calls.
+        let mut all_text_parts: Vec<String> = Vec::new();
+
         // Agentic loop: keep calling the LLM until we get a text-only response.
         loop {
             // Clone messages for the LLM call to avoid borrow issues.
@@ -188,8 +192,22 @@ impl Orchestrator {
 
             let response = self
                 .llm
-                .send_message(messages, tool_defs.clone(), &system)
+                .send_message(messages.clone(), tool_defs.clone(), &system)
                 .await?;
+
+            // Save LLM trace for debugging.
+            {
+                let request_json = serde_json::to_string(&json!({
+                    "message_count": messages.len(),
+                    "tool_count": tool_defs.len(),
+                }))
+                .unwrap_or_default();
+                let response_json =
+                    serde_json::to_string(&response).unwrap_or_default();
+                let conn = self.db.lock().await;
+                let _ =
+                    journal::save_llm_trace(&conn, session_id, &request_json, &response_json);
+            }
 
             // Collect tool_use blocks and text blocks.
             let mut tool_uses: Vec<(String, String, Value)> = Vec::new();
@@ -210,20 +228,25 @@ impl Orchestrator {
                 app_handle,
                 "llm_response",
                 &format!(
-                    "Response: {} text blocks, {} tool calls",
+                    "Response: {} text blocks, {} tool calls, stop={}",
                     text_parts.len(),
-                    tool_uses.len()
+                    tool_uses.len(),
+                    response.stop_reason.as_deref().unwrap_or("none"),
                 ),
                 json!({
                     "stop_reason": response.stop_reason,
                     "text_blocks": text_parts.len(),
                     "tool_calls": tool_uses.len(),
+                    "text_preview": text_parts.join("\n").chars().take(500).collect::<String>(),
                     "usage": {
                         "input_tokens": response.usage.input_tokens,
                         "output_tokens": response.usage.output_tokens,
                     },
                 }),
             );
+
+            // Accumulate any text from this turn.
+            all_text_parts.extend(text_parts);
 
             // Add the assistant message to history (as blocks).
             let assistant_blocks: Vec<ContentBlock> = response
@@ -247,9 +270,9 @@ impl Orchestrator {
                 });
             }
 
-            // If no tool calls, we're done — return the text.
+            // If no tool calls, we're done — return all accumulated text.
             if tool_uses.is_empty() {
-                return Ok(text_parts.join("\n"));
+                return Ok(all_text_parts.join("\n"));
             }
 
             // Execute each tool call.
