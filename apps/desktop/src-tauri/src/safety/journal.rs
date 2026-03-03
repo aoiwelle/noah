@@ -6,6 +6,16 @@ use uuid::Uuid;
 
 use itman_tools::ChangeRecord;
 
+/// Safely truncate a UTF-8 string to at most `max_chars` characters.
+fn truncate_utf8(s: &str, max_chars: usize) -> String {
+    let truncated: String = s.chars().take(max_chars).collect();
+    if truncated.len() < s.len() {
+        format!("{}...", truncated)
+    } else {
+        truncated
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JournalEntry {
     pub id: String,
@@ -732,16 +742,8 @@ pub fn get_recent_traces(conn: &Connection, limit: usize) -> Result<Vec<(String,
     let truncated = rows
         .into_iter()
         .map(|(ts, req, resp)| {
-            let req_short = if req.len() > 300 {
-                format!("{}...", &req[..300])
-            } else {
-                req
-            };
-            let resp_short = if resp.len() > 300 {
-                format!("{}...", &resp[..300])
-            } else {
-                resp
-            };
+            let req_short = truncate_utf8(&req, 300);
+            let resp_short = truncate_utf8(&resp, 300);
             (ts, req_short, resp_short)
         })
         .collect();
