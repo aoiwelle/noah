@@ -43,15 +43,11 @@ export interface MessageRecord {
   timestamp: string;
 }
 
-export interface Artifact {
-  id: string;
+export interface KnowledgeEntry {
   category: string;
+  filename: string;
+  path: string;
   title: string;
-  content: string;
-  source: string;
-  session_id: string | null;
-  created_at: string;
-  updated_at: string;
 }
 
 // ── Tauri Command Wrappers ──
@@ -127,24 +123,18 @@ export async function setApiKey(apiKey: string): Promise<void> {
   await invoke<void>("set_api_key", { apiKey });
 }
 
-export async function listArtifacts(
-  search?: string,
+export async function listKnowledge(
   category?: string,
-): Promise<Artifact[]> {
-  return await invoke<Artifact[]>("list_artifacts", { search, category });
+): Promise<KnowledgeEntry[]> {
+  return await invoke<KnowledgeEntry[]>("list_knowledge", { category });
 }
 
-export async function deleteArtifact(artifactId: string): Promise<void> {
-  await invoke<void>("delete_artifact", { artifactId });
+export async function readKnowledgeFile(path: string): Promise<string> {
+  return await invoke<string>("read_knowledge_file", { path });
 }
 
-export interface Suggestion {
-  label: string;
-  description: string;
-}
-
-export async function getContextualSuggestions(): Promise<Suggestion[]> {
-  return await invoke<Suggestion[]>("get_contextual_suggestions");
+export async function deleteKnowledgeFile(path: string): Promise<void> {
+  await invoke<void>("delete_knowledge_file", { path });
 }
 
 export async function getAppVersion(): Promise<string> {

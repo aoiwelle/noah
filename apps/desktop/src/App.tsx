@@ -8,6 +8,7 @@ import { ChatPanel } from "./components/ChatPanel";
 import { ActionApproval } from "./components/ActionApproval";
 import { ChangeLog } from "./components/ChangeLog";
 import { SessionHistory } from "./components/SessionHistory";
+import { KnowledgePanel } from "./components/KnowledgePanel";
 import { DebugPanel } from "./components/DebugPanel";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { UpdateBanner } from "./components/UpdateBanner";
@@ -89,6 +90,7 @@ function MainApp() {
       <SettingsPanel />
       <ActionApproval />
       <ChangeLog />
+      <KnowledgePanel />
       <SessionHistory />
     </div>
   );

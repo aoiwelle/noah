@@ -12,6 +12,7 @@ interface SessionState {
   pendingApproval: ApprovalRequest | null;
   changeLogOpen: boolean;
   historyOpen: boolean;
+  knowledgeOpen: boolean;
   settingsOpen: boolean;
   pastSessions: SessionRecord[];
 
@@ -25,6 +26,8 @@ interface SessionState {
   setChangeLogOpen: (open: boolean) => void;
   toggleHistory: () => void;
   setHistoryOpen: (open: boolean) => void;
+  toggleKnowledge: () => void;
+  setKnowledgeOpen: (open: boolean) => void;
   toggleSettings: () => void;
   setSettingsOpen: (open: boolean) => void;
   setPastSessions: (sessions: SessionRecord[]) => void;
@@ -37,6 +40,7 @@ export const useSessionStore = create<SessionState>((set) => ({
   pendingApproval: null,
   changeLogOpen: false,
   historyOpen: false,
+  knowledgeOpen: false,
   settingsOpen: false,
   pastSessions: [],
 
@@ -79,6 +83,11 @@ export const useSessionStore = create<SessionState>((set) => ({
     set((state) => ({ historyOpen: !state.historyOpen })),
 
   setHistoryOpen: (open) => set({ historyOpen: open }),
+
+  toggleKnowledge: () =>
+    set((state) => ({ knowledgeOpen: !state.knowledgeOpen })),
+
+  setKnowledgeOpen: (open) => set({ knowledgeOpen: open }),
 
   toggleSettings: () =>
     set((state) => ({ settingsOpen: !state.settingsOpen })),

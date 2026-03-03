@@ -1,6 +1,6 @@
 mod agent;
-mod artifacts;
 mod commands;
+mod knowledge;
 mod machine_context;
 mod platform;
 mod safety;
@@ -24,6 +24,8 @@ pub struct AppState {
     pub db: Arc<Mutex<rusqlite::Connection>>,
     /// Path to the app data directory (for saving config).
     pub app_dir: PathBuf,
+    /// Path to the knowledge directory (knowledge/).
+    pub knowledge_dir: PathBuf,
     /// Cancellation flag — can be set without holding the orchestrator lock.
     pub cancelled: Arc<AtomicBool>,
 }
@@ -82,13 +84,26 @@ pub fn run() {
             // Wrap DB in Arc<Mutex<>> early so tools can share it.
             let db_arc = Arc::new(Mutex::new(db));
 
+            // Initialise the knowledge directory.
+            let knowledge_dir = knowledge::init_knowledge_dir(&app_dir)
+                .expect("Failed to create knowledge directory");
+
+            // Run file-based migrations (e.g. artifact → knowledge file migration).
+            {
+                let conn = db_arc.blocking_lock();
+                journal::run_file_migrations(&conn, &knowledge_dir)
+                    .expect("Failed to run file migrations");
+            }
+
             // Build the tool router and register platform tools.
             let mut router = ToolRouter::new();
             platform::register_platform_tools(&mut router);
 
-            // Register knowledge artifact tools.
-            router.register(Box::new(artifacts::SaveArtifactTool::new(db_arc.clone())));
-            router.register(Box::new(artifacts::QueryArtifactsTool::new(db_arc.clone())));
+            // Register knowledge tools.
+            router.register(Box::new(knowledge::WriteKnowledgeTool::new(knowledge_dir.clone())));
+            router.register(Box::new(knowledge::SearchKnowledgeTool::new(knowledge_dir.clone())));
+            router.register(Box::new(knowledge::ReadKnowledgeTool::new(knowledge_dir.clone())));
+            router.register(Box::new(knowledge::ListKnowledgeTool::new(knowledge_dir.clone())));
 
             // Load API key: config file first, then env var.
             let api_key = load_api_key(&app_dir);
@@ -103,7 +118,7 @@ pub fn run() {
 
             // Build the orchestrator.
             let orchestrator =
-                Orchestrator::new(llm, router, os_context, pending_approvals.clone(), db_arc.clone());
+                Orchestrator::new(llm, router, os_context, pending_approvals.clone(), db_arc.clone(), knowledge_dir.clone());
             let cancelled = orchestrator.cancelled_flag();
 
             // Manage shared state.
@@ -112,6 +127,7 @@ pub fn run() {
                 pending_approvals,
                 db: db_arc,
                 app_dir,
+                knowledge_dir,
                 cancelled,
             });
 
@@ -140,9 +156,9 @@ pub fn run() {
             commands::settings::set_telemetry_consent,
             commands::settings::track_event,
             commands::settings::get_feedback_context,
-            commands::artifacts::list_artifacts,
-            commands::artifacts::delete_artifact,
-            commands::artifacts::get_contextual_suggestions,
+            commands::knowledge::list_knowledge,
+            commands::knowledge::read_knowledge_file,
+            commands::knowledge::delete_knowledge_file,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

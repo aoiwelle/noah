@@ -10,6 +10,8 @@ interface SessionBarProps {
 export function SessionBar({ session }: SessionBarProps) {
   const toggleHistory = useSessionStore((s) => s.toggleHistory);
   const historyOpen = useSessionStore((s) => s.historyOpen);
+  const toggleKnowledge = useSessionStore((s) => s.toggleKnowledge);
+  const knowledgeOpen = useSessionStore((s) => s.knowledgeOpen);
   const toggleSettings = useSessionStore((s) => s.toggleSettings);
   const settingsOpen = useSessionStore((s) => s.settingsOpen);
 
@@ -63,6 +65,41 @@ export function SessionBar({ session }: SessionBarProps) {
             />
           </svg>
           History
+        </button>
+
+        <button
+          onClick={toggleKnowledge}
+          title="Knowledge"
+          className={`
+            flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs
+            transition-colors duration-150 cursor-pointer
+            ${
+              knowledgeOpen
+                ? "bg-accent-green/20 text-accent-green"
+                : "text-text-secondary hover:text-text-primary hover:bg-bg-tertiary"
+            }
+          `}
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 14 14"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              d="M2 2.5C2 2.5 3.5 1.5 7 1.5C10.5 1.5 12 2.5 12 2.5V11.5C12 11.5 10.5 10.5 7 10.5C3.5 10.5 2 11.5 2 11.5V2.5Z"
+              stroke="currentColor"
+              strokeWidth="1.1"
+              strokeLinejoin="round"
+            />
+            <path
+              d="M7 1.5V10.5"
+              stroke="currentColor"
+              strokeWidth="1.1"
+            />
+          </svg>
+          Knowledge
         </button>
 
         <button

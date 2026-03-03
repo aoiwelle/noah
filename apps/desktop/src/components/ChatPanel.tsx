@@ -458,9 +458,11 @@ const TOOL_HUMAN_NAMES: Record<string, string> = {
   win_startup_programs: "Checking startup programs",
   win_service_list: "Listing services",
   win_restart_service: "Restarting service",
-  // Knowledge artifacts
-  save_artifact: "Saving knowledge",
-  query_artifacts: "Recalling knowledge",
+  // Knowledge tools
+  write_knowledge: "Saving knowledge",
+  search_knowledge: "Searching knowledge",
+  read_knowledge: "Reading knowledge",
+  list_knowledge: "Listing knowledge",
 };
 
 function humanizeToolCall(summary: string): string {
@@ -557,12 +559,12 @@ function SuggestionCards({
   >([]);
 
   useEffect(() => {
-    commands.getContextualSuggestions().then((suggestions) => {
+    commands.listKnowledge("issues").then((entries) => {
       setContextual(
-        suggestions.map((s) => ({
+        entries.slice(0, 2).map((e) => ({
           icon: "\uD83D\uDD04",
-          label: s.label,
-          description: s.description,
+          label: `Check on: ${e.title}`,
+          description: "Follow up on a previous issue",
         })),
       );
     }).catch(() => {});

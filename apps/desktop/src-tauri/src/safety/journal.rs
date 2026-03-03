@@ -52,7 +52,7 @@ pub struct SessionRecord {
 }
 
 /// Current schema version. Increment when adding migrations.
-const SCHEMA_VERSION: i32 = 3;
+const SCHEMA_VERSION: i32 = 4;
 
 /// Initialise the journal database, creating tables if they don't exist,
 /// then run any pending migrations.
@@ -217,8 +217,33 @@ fn apply_migrations(conn: &Connection, current: i32) -> Result<()> {
         set_schema_version(conn, 3)?;
     }
 
+    if current < 4 {
+        // Migration 4: Artifacts → knowledge files.
+        // The actual file migration runs in run_file_migrations() after init_db(),
+        // because it needs the knowledge_dir path. This step just bumps the version.
+        set_schema_version(conn, 4)?;
+    }
+
     // ── Add new migrations here ──
-    // if current < 4 { ... }
+    // if current < 5 { ... }
+
+    Ok(())
+}
+
+/// Run file-based migrations that require paths outside the DB.
+/// Called from lib.rs after init_db() and init_knowledge_dir().
+pub fn run_file_migrations(conn: &Connection, knowledge_dir: &std::path::Path) -> Result<()> {
+    // Check if artifacts have already been migrated by looking for a sentinel.
+    let migrated = get_setting(conn, "artifacts_migrated_to_files")?;
+    if migrated.is_some() {
+        return Ok(());
+    }
+
+    // Migrate artifacts to knowledge files.
+    crate::knowledge::migrate_artifacts_to_files(conn, knowledge_dir)?;
+
+    // Set sentinel so we don't re-run.
+    set_setting(conn, "artifacts_migrated_to_files", "true")?;
 
     Ok(())
 }

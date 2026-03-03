@@ -15,7 +15,7 @@ use crate::agent::llm_client::{
 };
 use crate::agent::prompts;
 use crate::agent::tool_router::ToolRouter;
-use crate::artifacts;
+use crate::knowledge;
 use crate::safety::journal;
 
 /// A pending approval that the frontend must accept or deny.
@@ -65,6 +65,8 @@ pub struct Orchestrator {
     pending_approvals: PendingApprovals,
     os_context: String,
     db: Arc<Mutex<rusqlite::Connection>>,
+    /// Path to the knowledge directory for building TOC.
+    knowledge_dir: std::path::PathBuf,
     /// Set to true to cancel the current agentic loop.
     cancelled: Arc<AtomicBool>,
 }
@@ -78,6 +80,7 @@ impl Orchestrator {
         os_context: String,
         pending_approvals: PendingApprovals,
         db: Arc<Mutex<rusqlite::Connection>>,
+        knowledge_dir: std::path::PathBuf,
     ) -> Self {
         Self {
             llm,
@@ -86,6 +89,7 @@ impl Orchestrator {
             pending_approvals,
             os_context,
             db,
+            knowledge_dir,
             cancelled: Arc::new(AtomicBool::new(false)),
         }
     }
@@ -178,11 +182,8 @@ impl Orchestrator {
             });
         }
 
-        let artifacts_ctx = {
-            let conn = self.db.lock().await;
-            artifacts::artifacts_for_prompt(&conn).unwrap_or_default()
-        };
-        let system = prompts::system_prompt(&self.os_context, &artifacts_ctx);
+        let knowledge_ctx = knowledge::knowledge_toc(&self.knowledge_dir).unwrap_or_default();
+        let system = prompts::system_prompt(&self.os_context, &knowledge_ctx);
         let tool_defs = self.router.tool_definitions();
 
         // Reset cancellation flag at the start of each user message.
@@ -534,6 +535,7 @@ mod tests {
             "test context".to_string(),
             Arc::new(Mutex::new(HashMap::new())),
             Arc::new(Mutex::new(conn)),
+            std::path::PathBuf::from("/tmp/test-knowledge"),
         )
     }
 
