@@ -147,12 +147,13 @@ function DoneCard({
   summary,
   timestamp,
   isLatestDone,
+  sessionId,
 }: {
   summary: string;
   timestamp: number;
   isLatestDone: boolean;
+  sessionId: string | null;
 }) {
-  const sessionId = useSessionStore((s) => s.sessionId);
   const [resolved, setResolved] = useState<boolean | null>(null);
   const [loaded, setLoaded] = useState(false);
 
@@ -361,11 +362,13 @@ function MessageDisplay({
   message,
   isProcessing,
   isLatestDone,
+  sessionId,
   onConfirm,
 }: {
   message: Message;
   isProcessing: boolean;
   isLatestDone: boolean;
+  sessionId: string | null;
   onConfirm: (messageId: string) => void;
 }) {
   // User confirmation pill
@@ -395,7 +398,7 @@ function MessageDisplay({
         />
       );
     case "done":
-      return <DoneCard summary={parsed.summary} timestamp={message.timestamp} isLatestDone={isLatestDone} />;
+      return <DoneCard summary={parsed.summary} timestamp={message.timestamp} isLatestDone={isLatestDone} sessionId={sessionId} />;
     case "info":
       return <InfoCard summary={parsed.summary} timestamp={message.timestamp} />;
     default:
@@ -623,11 +626,15 @@ function SuggestionCards({
 export function ChatPanel() {
   const messages = useChatStore((s) => s.messages);
   const setMessages = useChatStore((s) => s.setMessages);
+  const currentSessionId = useSessionStore((s) => s.sessionId);
   const viewingPastSession = useSessionStore((s) => s.viewingPastSession);
   const returnToCurrentSession = useSessionStore(
     (s) => s.returnToCurrentSession,
   );
   const pastSessions = useSessionStore((s) => s.pastSessions);
+
+  // Use the viewed past session ID when browsing history, otherwise the active one
+  const effectiveSessionId = viewingPastSession || currentSessionId;
   const { sendMessage, sendConfirmation, cancelProcessing, isProcessing } =
     useAgent();
 
@@ -718,6 +725,7 @@ export function ChatPanel() {
                   message={messages[0]}
                   isProcessing={isProcessing}
                   isLatestDone={messages[0].id === latestDoneId}
+                  sessionId={effectiveSessionId}
                   onConfirm={sendConfirmation}
                 />
                 <SuggestionCards
@@ -735,6 +743,7 @@ export function ChatPanel() {
                   message={msg}
                   isProcessing={isProcessing}
                   isLatestDone={msg.id === latestDoneId}
+                  sessionId={effectiveSessionId}
                   onConfirm={sendConfirmation}
                 />
               ))}
