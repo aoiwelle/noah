@@ -241,40 +241,65 @@ impl LlmClient {
             tools,
         };
 
-        let resp = self
-            .client
-            .post(API_URL)
-            .header("x-api-key", &self.api_key)
-            .header("anthropic-version", API_VERSION)
-            .header("content-type", "application/json")
-            .json(&body)
-            .send()
-            .await
-            .map_err(|e| {
-                if e.is_timeout() {
-                    anyhow::anyhow!("Claude is taking too long to respond. Please try again.")
-                } else if e.is_connect() {
-                    anyhow::anyhow!("Can't reach Claude — check your internet connection.")
-                } else {
-                    anyhow::anyhow!("Can't reach Claude — check your internet connection.")
-                }
-            })?;
+        let max_retries = 3u32;
+        let mut last_error: Option<anyhow::Error> = None;
 
-        let status = resp.status();
-        if !status.is_success() {
+        for attempt in 0..=max_retries {
+            if attempt > 0 {
+                // Exponential backoff: 1s, 2s, 4s
+                let delay = std::time::Duration::from_secs(1 << (attempt - 1));
+                tokio::time::sleep(delay).await;
+            }
+
+            let resp = match self
+                .client
+                .post(API_URL)
+                .header("x-api-key", &self.api_key)
+                .header("anthropic-version", API_VERSION)
+                .header("content-type", "application/json")
+                .json(&body)
+                .send()
+                .await
+            {
+                Ok(r) => r,
+                Err(e) => {
+                    let err = if e.is_timeout() {
+                        anyhow::anyhow!("Claude is taking too long to respond. Please try again.")
+                    } else {
+                        anyhow::anyhow!("Can't reach Claude — check your internet connection.")
+                    };
+                    // Network errors are retryable
+                    last_error = Some(err);
+                    continue;
+                }
+            };
+
+            let status = resp.status();
+            if status.is_success() {
+                let response: Response = resp
+                    .json()
+                    .await
+                    .context("Failed to parse Anthropic API response")?;
+                return Ok(response);
+            }
+
             let error_body = resp
                 .text()
                 .await
                 .unwrap_or_else(|_| "unknown error".to_string());
-            anyhow::bail!("{}", friendly_api_error(status, &error_body));
+
+            // Only retry on retryable status codes
+            let retryable = matches!(status.as_u16(), 429 | 500 | 502 | 503 | 529);
+            let friendly = friendly_api_error(status, &error_body);
+
+            if !retryable || attempt == max_retries {
+                anyhow::bail!("{}", friendly);
+            }
+
+            last_error = Some(anyhow::anyhow!("{}", friendly));
         }
 
-        let response: Response = resp
-            .json()
-            .await
-            .context("Failed to parse Anthropic API response")?;
-
-        Ok(response)
+        Err(last_error.unwrap_or_else(|| anyhow::anyhow!("Request failed after retries")))
     }
 }
 
