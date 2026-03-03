@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useSessionStore } from "../stores/sessionStore";
-import { useChatStore } from "../stores/chatStore";
+import { useSession } from "../hooks/useSession";
 import * as commands from "../lib/tauri-commands";
 import type { SessionRecord } from "../lib/tauri-commands";
 
@@ -170,8 +170,7 @@ export function SessionHistory() {
   const setHistoryOpen = useSessionStore((s) => s.setHistoryOpen);
   const pastSessions = useSessionStore((s) => s.pastSessions);
   const setPastSessions = useSessionStore((s) => s.setPastSessions);
-  const viewPastSession = useSessionStore((s) => s.viewPastSession);
-  const setMessages = useChatStore((s) => s.setMessages);
+  const { switchToProblem } = useSession();
 
   const loadSessions = useCallback(async () => {
     try {
@@ -216,38 +215,10 @@ export function SessionHistory() {
 
   const handleSelectSession = useCallback(
     async (sessionId: string) => {
-      try {
-        const records = await commands.getSessionMessages(sessionId);
-        const currentMessages = useChatStore.getState().messages;
-
-        if (records.length === 0) {
-          // Session predates message persistence — show a placeholder
-          setMessages([
-            {
-              id: "no-messages",
-              role: "system" as const,
-              content:
-                "This session's conversation was not saved. (Message recording was added in a later version.)",
-              timestamp: Date.now(),
-            },
-          ]);
-        } else {
-          setMessages(
-            records.map((r) => ({
-              id: r.id,
-              role: r.role as "user" | "assistant" | "system",
-              content: r.content,
-              timestamp: new Date(r.timestamp).getTime(),
-            })),
-          );
-        }
-
-        viewPastSession(sessionId, currentMessages);
-      } catch (err) {
-        console.error("Failed to load session messages:", err);
-      }
+      await switchToProblem(sessionId);
+      setHistoryOpen(false);
     },
-    [viewPastSession, setMessages],
+    [switchToProblem, setHistoryOpen],
   );
 
   useEffect(() => {

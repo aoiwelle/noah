@@ -1,5 +1,4 @@
 import { create } from "zustand";
-import type { Message } from "./chatStore";
 import type {
   ApprovalRequest,
   ChangeEntry,
@@ -16,11 +15,6 @@ interface SessionState {
   settingsOpen: boolean;
   pastSessions: SessionRecord[];
 
-  /** Non-null when viewing a past session (read-only). */
-  viewingPastSession: string | null;
-  /** Saved current-session messages so we can restore them. */
-  savedMessages: Message[] | null;
-
   setSession: (id: string) => void;
   endSession: () => void;
   addChange: (change: ChangeEntry) => void;
@@ -34,11 +28,9 @@ interface SessionState {
   toggleSettings: () => void;
   setSettingsOpen: (open: boolean) => void;
   setPastSessions: (sessions: SessionRecord[]) => void;
-  viewPastSession: (id: string, currentMessages: Message[]) => void;
-  returnToCurrentSession: () => Message[] | null;
 }
 
-export const useSessionStore = create<SessionState>((set, get) => ({
+export const useSessionStore = create<SessionState>((set) => ({
   sessionId: null,
   isActive: false,
   changes: [],
@@ -47,8 +39,6 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   historyOpen: false,
   settingsOpen: false,
   pastSessions: [],
-  viewingPastSession: null,
-  savedMessages: null,
 
   setSession: (id) =>
     set({
@@ -96,17 +86,4 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   setSettingsOpen: (open) => set({ settingsOpen: open }),
 
   setPastSessions: (sessions) => set({ pastSessions: sessions }),
-
-  viewPastSession: (id, currentMessages) =>
-    set({
-      viewingPastSession: id,
-      savedMessages: currentMessages,
-      historyOpen: false,
-    }),
-
-  returnToCurrentSession: () => {
-    const saved = get().savedMessages;
-    set({ viewingPastSession: null, savedMessages: null });
-    return saved;
-  },
 }));

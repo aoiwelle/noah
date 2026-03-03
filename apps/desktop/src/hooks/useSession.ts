@@ -8,6 +8,8 @@ interface UseSessionReturn {
   isActive: boolean;
   /** End the current problem and start a fresh session. */
   startNewProblem: () => Promise<void>;
+  /** Switch to an existing problem/session (loads its messages). */
+  switchToProblem: (sessionId: string) => Promise<void>;
 }
 
 export function useSession(): UseSessionReturn {
@@ -19,6 +21,7 @@ export function useSession(): UseSessionReturn {
   } = useSessionStore();
   const addMessage = useChatStore((s) => s.addMessage);
   const clearMessages = useChatStore((s) => s.clearMessages);
+  const setMessages = useChatStore((s) => s.setMessages);
 
   const createSession = useCallback(async () => {
     try {
@@ -40,7 +43,6 @@ export function useSession(): UseSessionReturn {
   }, [setSession, addMessage, clearMessages]);
 
   const startNewProblem = useCallback(async () => {
-    // Wrap up the current session silently, then start fresh.
     if (sessionId) {
       try {
         await commands.endSession(sessionId);
@@ -52,7 +54,39 @@ export function useSession(): UseSessionReturn {
     await createSession();
   }, [sessionId, endSessionState, createSession]);
 
-  // Auto-create session on mount (guard against React Strict Mode double-fire)
+  const switchToProblem = useCallback(
+    async (targetId: string) => {
+      try {
+        const records = await commands.getSessionMessages(targetId);
+        if (records.length === 0) {
+          setMessages([
+            {
+              id: "no-messages",
+              role: "system",
+              content:
+                "This session's conversation was not saved. (Message recording was added in a later version.)",
+              timestamp: Date.now(),
+            },
+          ]);
+        } else {
+          setMessages(
+            records.map((r) => ({
+              id: r.id,
+              role: r.role as "user" | "assistant" | "system",
+              content: r.content,
+              timestamp: new Date(r.timestamp).getTime(),
+            })),
+          );
+        }
+        setSession(targetId);
+      } catch (err) {
+        console.error("Failed to switch session:", err);
+      }
+    },
+    [setSession, setMessages],
+  );
+
+  // Auto-create session on mount
   const creatingRef = useRef(false);
   useEffect(() => {
     if (!sessionId && !creatingRef.current) {
@@ -68,5 +102,6 @@ export function useSession(): UseSessionReturn {
     sessionId,
     isActive,
     startNewProblem,
+    switchToProblem,
   };
 }

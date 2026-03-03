@@ -238,7 +238,7 @@ function DoneCard({
         {resolved === false && (
           <div className="mt-2 ml-1">
             <span className="text-[11px] text-text-muted">
-              Got it — keep chatting and I'll keep working on it.
+              Got it &mdash; keep chatting and I'll keep working on it.
             </span>
           </div>
         )}
@@ -625,33 +625,13 @@ function SuggestionCards({
 
 export function ChatPanel() {
   const messages = useChatStore((s) => s.messages);
-  const setMessages = useChatStore((s) => s.setMessages);
-  const currentSessionId = useSessionStore((s) => s.sessionId);
-  const viewingPastSession = useSessionStore((s) => s.viewingPastSession);
-  const returnToCurrentSession = useSessionStore(
-    (s) => s.returnToCurrentSession,
-  );
-  const pastSessions = useSessionStore((s) => s.pastSessions);
-
-  // Use the viewed past session ID when browsing history, otherwise the active one
-  const effectiveSessionId = viewingPastSession || currentSessionId;
+  const sessionId = useSessionStore((s) => s.sessionId);
   const { sendMessage, sendConfirmation, cancelProcessing, isProcessing } =
     useAgent();
 
   const [input, setInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-  const handleBackToCurrent = useCallback(() => {
-    const saved = returnToCurrentSession();
-    if (saved) {
-      setMessages(saved);
-    }
-  }, [returnToCurrentSession, setMessages]);
-
-  const viewingSession = viewingPastSession
-    ? pastSessions.find((s) => s.id === viewingPastSession)
-    : null;
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
@@ -683,22 +663,6 @@ export function ChatPanel() {
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
-      {/* Past session banner */}
-      {viewingPastSession && (
-        <div className="flex items-center justify-between px-4 py-2 bg-accent-purple/10 border-b border-accent-purple/20">
-          <span className="text-xs text-text-secondary">
-            Viewing past session
-            {viewingSession?.title ? `: ${viewingSession.title}` : ""}
-          </span>
-          <button
-            onClick={handleBackToCurrent}
-            className="text-xs text-accent-green font-medium hover:underline cursor-pointer"
-          >
-            Back to current session
-          </button>
-        </div>
-      )}
-
       {/* Messages area */}
       <div className="flex-1 overflow-y-auto px-4 py-4">
         {(() => {
@@ -725,7 +689,7 @@ export function ChatPanel() {
                   message={messages[0]}
                   isProcessing={isProcessing}
                   isLatestDone={messages[0].id === latestDoneId}
-                  sessionId={effectiveSessionId}
+                  sessionId={sessionId}
                   onConfirm={sendConfirmation}
                 />
                 <SuggestionCards
@@ -743,7 +707,7 @@ export function ChatPanel() {
                   message={msg}
                   isProcessing={isProcessing}
                   isLatestDone={msg.id === latestDoneId}
-                  sessionId={effectiveSessionId}
+                  sessionId={sessionId}
                   onConfirm={sendConfirmation}
                 />
               ))}
@@ -754,9 +718,8 @@ export function ChatPanel() {
         })()}
       </div>
 
-      {/* Input area — hidden when viewing past session */}
-      {!viewingPastSession && (
-        <div className="border-t border-border-primary bg-bg-secondary px-4 py-3">
+      {/* Input area */}
+      <div className="border-t border-border-primary bg-bg-secondary px-4 py-3">
           <div className="max-w-2xl mx-auto">
             <div className="flex items-end gap-2 bg-bg-input rounded-xl border border-border-primary focus-within:border-border-focus transition-colors">
               <textarea
@@ -825,7 +788,6 @@ export function ChatPanel() {
             </p>
           </div>
         </div>
-      )}
     </div>
   );
 }
