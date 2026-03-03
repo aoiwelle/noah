@@ -1,7 +1,10 @@
-import { useEffect, useCallback, useRef } from "react";
+import { useEffect, useCallback } from "react";
 import { useSessionStore } from "../stores/sessionStore";
 import { useChatStore } from "../stores/chatStore";
 import * as commands from "../lib/tauri-commands";
+
+// Module-level guard: shared across all useSession() instances
+let creating = false;
 
 interface UseSessionReturn {
   sessionId: string | null;
@@ -86,13 +89,13 @@ export function useSession(): UseSessionReturn {
     [setSession, setMessages],
   );
 
-  // Auto-create session on mount
-  const creatingRef = useRef(false);
+  // Auto-create session on mount (module-level guard prevents duplicates
+  // across multiple useSession() instances and StrictMode double-mounts)
   useEffect(() => {
-    if (!sessionId && !creatingRef.current) {
-      creatingRef.current = true;
+    if (!sessionId && !creating) {
+      creating = true;
       createSession().finally(() => {
-        creatingRef.current = false;
+        creating = false;
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
