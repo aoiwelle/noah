@@ -32,6 +32,7 @@ export interface SessionRecord {
   title: string | null;
   message_count: number;
   change_count: number;
+  resolved: boolean | null;
 }
 
 export interface MessageRecord {
@@ -97,6 +98,13 @@ export async function getSessionMessages(
   sessionId: string,
 ): Promise<MessageRecord[]> {
   return await invoke<MessageRecord[]>("get_session_messages", { sessionId });
+}
+
+export async function markResolved(
+  sessionId: string,
+  resolved: boolean,
+): Promise<void> {
+  await invoke<void>("mark_resolved", { sessionId, resolved });
 }
 
 export async function exportSession(sessionId: string): Promise<string> {

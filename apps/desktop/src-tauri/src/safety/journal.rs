@@ -37,10 +37,12 @@ pub struct SessionRecord {
     pub title: Option<String>,
     pub message_count: i32,
     pub change_count: i32,
+    /// User-confirmed resolution: true = resolved, false = not resolved, None = not yet marked.
+    pub resolved: Option<bool>,
 }
 
 /// Current schema version. Increment when adding migrations.
-const SCHEMA_VERSION: i32 = 2;
+const SCHEMA_VERSION: i32 = 3;
 
 /// Initialise the journal database, creating tables if they don't exist,
 /// then run any pending migrations.
@@ -202,8 +204,16 @@ fn apply_migrations(conn: &Connection, current: i32) -> Result<()> {
         // Migration 2: (reserved — placeholder for next schema change)
     }
 
+    if current < 3 {
+        // Migration 3: Add resolved column to sessions (NULL = not yet marked)
+        conn.execute_batch(
+            "ALTER TABLE sessions ADD COLUMN resolved INTEGER;",
+        )
+        .context("Migration 3 failed")?;
+    }
+
     // ── Add new migrations here ──
-    // if current < 3 { ... }
+    // if current < 4 { ... }
 
     Ok(())
 }
@@ -341,6 +351,16 @@ pub fn end_session_record(conn: &Connection, id: &str, ended_at: &str, message_c
     Ok(())
 }
 
+/// Mark a session as resolved (true) or unresolved (false) by the user.
+pub fn mark_session_resolved(conn: &Connection, id: &str, resolved: bool) -> Result<()> {
+    conn.execute(
+        "UPDATE sessions SET resolved = ?1 WHERE id = ?2",
+        rusqlite::params![resolved as i32, id],
+    )
+    .context("Failed to mark session resolved")?;
+    Ok(())
+}
+
 // ── Message persistence ────────────────────────────────────────────────
 
 /// Save an LLM API trace (request + response) for debugging.
@@ -405,7 +425,7 @@ pub fn list_sessions(conn: &Connection) -> Result<Vec<SessionRecord>> {
     let mut stmt = conn
         .prepare(
             "SELECT s.id, s.created_at, s.ended_at, s.title, s.message_count,
-                    COALESCE(j.change_count, 0)
+                    COALESCE(j.change_count, 0), s.resolved
              FROM sessions s
              LEFT JOIN (
                  SELECT session_id, COUNT(*) as change_count
@@ -419,6 +439,7 @@ pub fn list_sessions(conn: &Connection) -> Result<Vec<SessionRecord>> {
 
     let records = stmt
         .query_map([], |row| {
+            let resolved_int: Option<i32> = row.get(6)?;
             Ok(SessionRecord {
                 id: row.get(0)?,
                 created_at: row.get(1)?,
@@ -426,6 +447,7 @@ pub fn list_sessions(conn: &Connection) -> Result<Vec<SessionRecord>> {
                 title: row.get(3)?,
                 message_count: row.get(4)?,
                 change_count: row.get(5)?,
+                resolved: resolved_int.map(|v| v != 0),
             })
         })
         .context("Failed to execute list_sessions query")?
@@ -598,6 +620,7 @@ mod tests {
             title: Some("Test".to_string()),
             message_count: 3,
             change_count: 1,
+            resolved: None,
         };
         let json = serde_json::to_value(&rec).unwrap();
         let obj = json.as_object().unwrap();
@@ -609,10 +632,11 @@ mod tests {
             "title",
             "message_count",
             "change_count",
+            "resolved",
         ] {
             assert!(obj.contains_key(key), "Missing expected key: {}", key);
         }
-        assert_eq!(obj.len(), 6);
+        assert_eq!(obj.len(), 7);
         // Must NOT have camelCase
         assert!(!obj.contains_key("createdAt"));
         assert!(!obj.contains_key("endedAt"));

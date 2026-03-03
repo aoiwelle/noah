@@ -147,30 +147,85 @@ function ActionCard({
 function DoneCard({
   summary,
   timestamp,
+  isLatestDone,
 }: {
   summary: string;
   timestamp: number;
+  isLatestDone: boolean;
 }) {
+  const sessionId = useSessionStore((s) => s.sessionId);
+  const [resolved, setResolved] = useState<boolean | null>(null);
+
+  const handleResolve = async (value: boolean) => {
+    if (!sessionId) return;
+    setResolved(value);
+    try {
+      await commands.markResolved(sessionId, value);
+    } catch (err) {
+      console.error("Failed to mark resolved:", err);
+    }
+  };
+
   return (
     <div className="flex justify-start animate-fade-in">
-      <div className="max-w-[80%] rounded-xl border border-accent-green/30 bg-accent-green/5 px-4 py-3">
-        <div className="flex items-start gap-2.5">
-          <span className="text-accent-green text-base mt-0.5">{"\u2713"}</span>
-          <div className="flex-1">
-            <span className="text-[10px] font-medium uppercase tracking-wider text-accent-green">
-              Done
-            </span>
-            <div className="text-sm text-text-primary leading-relaxed mt-1">
-              {summary}
-            </div>
-            <div className="text-[10px] text-text-muted mt-1.5">
-              {new Date(timestamp).toLocaleTimeString([], {
-                hour: "2-digit",
-                minute: "2-digit",
-              })}
+      <div className="max-w-[80%]">
+        <div className="rounded-xl border border-accent-green/30 bg-accent-green/5 px-4 py-3">
+          <div className="flex items-start gap-2.5">
+            <span className="text-accent-green text-base mt-0.5">{"\u2713"}</span>
+            <div className="flex-1">
+              <span className="text-[10px] font-medium uppercase tracking-wider text-accent-green">
+                Noah
+              </span>
+              <div className="text-sm text-text-primary leading-relaxed mt-1">
+                {summary}
+              </div>
+              <div className="text-[10px] text-text-muted mt-1.5">
+                {new Date(timestamp).toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </div>
             </div>
           </div>
         </div>
+
+        {/* Resolution prompt — only on the latest done card */}
+        {isLatestDone && resolved === null && (
+          <div className="flex items-center gap-2 mt-2 ml-1">
+            <span className="text-[11px] text-text-muted">
+              Did this fix your issue?
+            </span>
+            <button
+              onClick={() => handleResolve(true)}
+              className="px-2.5 py-1 rounded-md text-[11px] font-medium text-accent-green bg-accent-green/10 hover:bg-accent-green/20 transition-colors cursor-pointer"
+            >
+              Yes, all good
+            </button>
+            <button
+              onClick={() => handleResolve(false)}
+              className="px-2.5 py-1 rounded-md text-[11px] text-text-muted hover:bg-bg-tertiary transition-colors cursor-pointer"
+            >
+              Not quite
+            </button>
+          </div>
+        )}
+
+        {/* Resolution confirmation */}
+        {resolved === true && (
+          <div className="flex items-center gap-1.5 mt-2 ml-1">
+            <span className="text-accent-green text-xs">{"\u2713"}</span>
+            <span className="text-[11px] text-text-muted">
+              Marked as resolved
+            </span>
+          </div>
+        )}
+        {resolved === false && (
+          <div className="mt-2 ml-1">
+            <span className="text-[11px] text-text-muted">
+              Got it — keep chatting and I'll keep working on it.
+            </span>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -290,10 +345,12 @@ function MessageBubble({ message }: { message: Message }) {
 function MessageDisplay({
   message,
   isProcessing,
+  isLatestDone,
   onConfirm,
 }: {
   message: Message;
   isProcessing: boolean;
+  isLatestDone: boolean;
   onConfirm: (messageId: string) => void;
 }) {
   // User confirmation pill
@@ -323,7 +380,7 @@ function MessageDisplay({
         />
       );
     case "done":
-      return <DoneCard summary={parsed.summary} timestamp={message.timestamp} />;
+      return <DoneCard summary={parsed.summary} timestamp={message.timestamp} isLatestDone={isLatestDone} />;
     case "info":
       return <InfoCard summary={parsed.summary} timestamp={message.timestamp} />;
     default:
@@ -627,37 +684,55 @@ export function ChatPanel() {
 
       {/* Messages area */}
       <div className="flex-1 overflow-y-auto px-4 py-4">
-        {messages.length === 0 ? (
-          <SuggestionCards
-            onSelect={(text) => sendMessage(text)}
-            disabled={isProcessing}
-          />
-        ) : messages.length === 1 && messages[0].role === "system" ? (
-          <div className="max-w-2xl mx-auto space-y-4">
-            <MessageDisplay
-              message={messages[0]}
-              isProcessing={isProcessing}
-              onConfirm={sendConfirmation}
-            />
-            <SuggestionCards
-              onSelect={(text) => sendMessage(text)}
-              disabled={isProcessing}
-            />
-          </div>
-        ) : (
-          <div className="max-w-2xl mx-auto space-y-3">
-            {messages.map((msg) => (
-              <MessageDisplay
-                key={msg.id}
-                message={msg}
-                isProcessing={isProcessing}
-                onConfirm={sendConfirmation}
+        {(() => {
+          // Find the last "done" message so only it shows the resolution prompt
+          const latestDoneId = [...messages]
+            .reverse()
+            .find(
+              (m) =>
+                m.role === "assistant" && parseResponse(m.content).type === "done",
+            )?.id ?? null;
+
+          if (messages.length === 0) {
+            return (
+              <SuggestionCards
+                onSelect={(text) => sendMessage(text)}
+                disabled={isProcessing}
               />
-            ))}
-            {isProcessing && <ThinkingIndicator />}
-            <div ref={messagesEndRef} />
-          </div>
-        )}
+            );
+          }
+          if (messages.length === 1 && messages[0].role === "system") {
+            return (
+              <div className="max-w-2xl mx-auto space-y-4">
+                <MessageDisplay
+                  message={messages[0]}
+                  isProcessing={isProcessing}
+                  isLatestDone={messages[0].id === latestDoneId}
+                  onConfirm={sendConfirmation}
+                />
+                <SuggestionCards
+                  onSelect={(text) => sendMessage(text)}
+                  disabled={isProcessing}
+                />
+              </div>
+            );
+          }
+          return (
+            <div className="max-w-2xl mx-auto space-y-3">
+              {messages.map((msg) => (
+                <MessageDisplay
+                  key={msg.id}
+                  message={msg}
+                  isProcessing={isProcessing}
+                  isLatestDone={msg.id === latestDoneId}
+                  onConfirm={sendConfirmation}
+                />
+              ))}
+              {isProcessing && <ThinkingIndicator />}
+              <div ref={messagesEndRef} />
+            </div>
+          );
+        })()}
       </div>
 
       {/* Input area — hidden when viewing past session */}

@@ -136,6 +136,17 @@ pub async fn get_session_summary(
 }
 
 #[tauri::command]
+pub async fn mark_resolved(
+    state: State<'_, AppState>,
+    session_id: String,
+    resolved: bool,
+) -> Result<(), String> {
+    let conn = state.db.lock().await;
+    journal::mark_session_resolved(&conn, &session_id, resolved)
+        .map_err(|e| format!("Failed to mark session: {}", e))
+}
+
+#[tauri::command]
 pub async fn export_session(
     state: State<'_, AppState>,
     session_id: String,
