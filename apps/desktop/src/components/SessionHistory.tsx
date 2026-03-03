@@ -169,14 +169,30 @@ export function SessionHistory() {
     async (sessionId: string) => {
       try {
         const records = await commands.getSessionMessages(sessionId);
-        const loaded = records.map((r) => ({
-          id: r.id,
-          role: r.role as "user" | "assistant" | "system",
-          content: r.content,
-          timestamp: new Date(r.timestamp).getTime(),
-        }));
         const currentMessages = useChatStore.getState().messages;
-        setMessages(loaded);
+
+        if (records.length === 0) {
+          // Session predates message persistence — show a placeholder
+          setMessages([
+            {
+              id: "no-messages",
+              role: "system" as const,
+              content:
+                "This session's conversation was not saved. (Message recording was added in a later version.)",
+              timestamp: Date.now(),
+            },
+          ]);
+        } else {
+          setMessages(
+            records.map((r) => ({
+              id: r.id,
+              role: r.role as "user" | "assistant" | "system",
+              content: r.content,
+              timestamp: new Date(r.timestamp).getTime(),
+            })),
+          );
+        }
+
         viewPastSession(sessionId, currentMessages);
       } catch (err) {
         console.error("Failed to load session messages:", err);
