@@ -639,6 +639,47 @@ pub fn get_setting(conn: &Connection, key: &str) -> Result<Option<String>> {
     }
 }
 
+/// Retrieve summaries of the last N LLM traces for feedback/diagnostics.
+/// Returns a list of (timestamp, truncated_request, truncated_response) tuples.
+pub fn get_recent_traces(conn: &Connection, limit: usize) -> Result<Vec<(String, String, String)>> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT timestamp, request, response FROM llm_traces ORDER BY timestamp DESC LIMIT ?1",
+        )
+        .context("Failed to prepare get_recent_traces")?;
+
+    let rows = stmt
+        .query_map(rusqlite::params![limit as i64], |row| {
+            let ts: String = row.get(0)?;
+            let req: String = row.get(1)?;
+            let resp: String = row.get(2)?;
+            Ok((ts, req, resp))
+        })
+        .context("Failed to query traces")?
+        .collect::<std::result::Result<Vec<_>, _>>()
+        .context("Failed to collect traces")?;
+
+    // Truncate each field to keep the output manageable
+    let truncated = rows
+        .into_iter()
+        .map(|(ts, req, resp)| {
+            let req_short = if req.len() > 300 {
+                format!("{}...", &req[..300])
+            } else {
+                req
+            };
+            let resp_short = if resp.len() > 300 {
+                format!("{}...", &resp[..300])
+            } else {
+                resp
+            };
+            (ts, req_short, resp_short)
+        })
+        .collect();
+
+    Ok(truncated)
+}
+
 /// Set a setting value by key.
 pub fn set_setting(conn: &Connection, key: &str, value: &str) -> Result<()> {
     conn.execute(

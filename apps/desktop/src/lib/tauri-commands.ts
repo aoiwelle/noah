@@ -157,3 +157,19 @@ export async function trackEvent(
 ): Promise<void> {
   await invoke<void>("track_event", { eventType, data });
 }
+
+export interface TraceSummary {
+  timestamp: string;
+  request: string;
+  response: string;
+}
+
+export interface FeedbackContext {
+  version: string;
+  os: string;
+  traces: TraceSummary[];
+}
+
+export async function getFeedbackContext(): Promise<FeedbackContext> {
+  return await invoke<FeedbackContext>("get_feedback_context");
+}

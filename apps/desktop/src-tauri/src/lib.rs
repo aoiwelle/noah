@@ -137,6 +137,7 @@ pub fn run() {
             commands::settings::get_telemetry_consent,
             commands::settings::set_telemetry_consent,
             commands::settings::track_event,
+            commands::settings::get_feedback_context,
             commands::artifacts::list_artifacts,
             commands::artifacts::delete_artifact,
             commands::artifacts::get_contextual_suggestions,

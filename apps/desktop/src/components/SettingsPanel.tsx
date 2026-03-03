@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { useSessionStore } from "../stores/sessionStore";
 import * as commands from "../lib/tauri-commands";
 
@@ -28,6 +29,44 @@ export function SettingsPanel() {
     setTelemetryEnabled(newValue);
     await commands.setTelemetryConsent(newValue);
   }, [telemetryEnabled]);
+
+  const [reportingBug, setReportingBug] = useState(false);
+
+  const handleReportProblem = useCallback(async () => {
+    setReportingBug(true);
+    try {
+      const ctx = await commands.getFeedbackContext();
+
+      // Build diagnostic section
+      let diag = `\n\n---\n**Diagnostics (auto-attached)**\n`;
+      diag += `- Noah v${ctx.version}\n`;
+      diag += `- OS: ${ctx.os}\n`;
+
+      if (ctx.traces.length > 0) {
+        diag += `\n<details><summary>Last ${ctx.traces.length} LLM trace(s)</summary>\n\n`;
+        for (const t of ctx.traces) {
+          diag += `**${t.timestamp}**\n`;
+          diag += `Request: \`${t.request.replace(/`/g, "'")}\`\n`;
+          diag += `Response: \`${t.response.replace(/`/g, "'")}\`\n\n`;
+        }
+        diag += `</details>\n`;
+      }
+
+      const body = encodeURIComponent(
+        `**What happened?**\n\n(Describe what you expected vs what actually happened)\n\n**Steps to reproduce**\n\n1. \n2. \n3. \n${diag}`,
+      );
+      const title = encodeURIComponent("Bug report from Noah app");
+      const url = `https://github.com/xuy/noah/issues/new?title=${title}&body=${body}&labels=bug`;
+
+      await openUrl(url);
+    } catch (err) {
+      console.error("Failed to gather feedback context:", err);
+      // Fallback: open issues page without context
+      await openUrl("https://github.com/xuy/noah/issues/new");
+    } finally {
+      setReportingBug(false);
+    }
+  }, []);
 
   const handleSaveKey = useCallback(async () => {
     const key = apiKey.trim();
@@ -156,11 +195,10 @@ export function SettingsPanel() {
               Help & Feedback
             </h3>
             <div className="space-y-1.5">
-              <a
-                href="https://github.com/xulea/itman/issues"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-text-secondary hover:bg-bg-tertiary hover:text-text-primary transition-colors"
+              <button
+                onClick={handleReportProblem}
+                disabled={reportingBug}
+                className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-xs text-text-secondary hover:bg-bg-tertiary hover:text-text-primary transition-colors cursor-pointer disabled:opacity-50"
               >
                 <svg
                   width="14"
@@ -184,8 +222,8 @@ export function SettingsPanel() {
                   />
                   <circle cx="7" cy="9.5" r="0.5" fill="currentColor" />
                 </svg>
-                Report a Problem
-              </a>
+                {reportingBug ? "Gathering info..." : "Report a Problem"}
+              </button>
               <a
                 href="https://console.anthropic.com"
                 target="_blank"
