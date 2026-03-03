@@ -44,8 +44,26 @@ const SCHEMA_VERSION: i32 = 2;
 
 /// Initialise the journal database, creating tables if they don't exist,
 /// then run any pending migrations.
+///
+/// Before running migrations on an existing database, a pre-migration backup
+/// is saved to `<path>.pre-migrate.bak` so data is recoverable if an update
+/// introduces a broken migration.
 pub fn init_db(path: &str) -> Result<Connection> {
     let conn = Connection::open(path).context("Failed to open journal database")?;
+
+    // Check if this is an existing DB that needs migration — back it up first.
+    let current_version = get_schema_version(&conn);
+    if current_version > 0 && current_version < SCHEMA_VERSION {
+        let bak = format!("{}.pre-migrate.bak", path);
+        if let Err(e) = std::fs::copy(path, &bak) {
+            eprintln!("[warn] Failed to create pre-migration backup: {}", e);
+        } else {
+            eprintln!(
+                "[info] Migrating DB from schema v{} to v{} (backup: {})",
+                current_version, SCHEMA_VERSION, bak
+            );
+        }
+    }
 
     // Create base tables (idempotent via IF NOT EXISTS).
     conn.execute_batch(
@@ -137,6 +155,35 @@ fn set_schema_version(conn: &Connection, version: i32) -> Result<()> {
 fn run_migrations(conn: &Connection) -> Result<()> {
     let current = get_schema_version(conn);
 
+    if current >= SCHEMA_VERSION {
+        return Ok(());
+    }
+
+    // Run all pending migrations inside a transaction so a half-applied
+    // migration doesn't leave the database in an inconsistent state.
+    conn.execute_batch("BEGIN TRANSACTION")
+        .context("Failed to begin migration transaction")?;
+
+    let result = apply_migrations(conn, current);
+
+    match result {
+        Ok(()) => {
+            set_schema_version(conn, SCHEMA_VERSION)?;
+            conn.execute_batch("COMMIT")
+                .context("Failed to commit migrations")?;
+        }
+        Err(e) => {
+            let _ = conn.execute_batch("ROLLBACK");
+            return Err(e);
+        }
+    }
+
+    Ok(())
+}
+
+/// Apply individual migrations based on the current schema version.
+/// Called inside a transaction by `run_migrations`.
+fn apply_migrations(conn: &Connection, current: i32) -> Result<()> {
     if current < 1 {
         // Migration 1: Add telemetry_events table
         conn.execute_batch(
@@ -152,13 +199,11 @@ fn run_migrations(conn: &Connection) -> Result<()> {
     }
 
     if current < 2 {
-        // Migration 2: (reserved for future use — placeholder for next schema change)
-        // This ensures new installs start at version 2.
+        // Migration 2: (reserved — placeholder for next schema change)
     }
 
-    if current < SCHEMA_VERSION {
-        set_schema_version(conn, SCHEMA_VERSION)?;
-    }
+    // ── Add new migrations here ──
+    // if current < 3 { ... }
 
     Ok(())
 }

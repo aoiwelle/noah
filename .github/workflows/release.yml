@@ -35,11 +35,17 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - name: Build Tauri app
-        run: cd apps/desktop && pnpm tauri build
-
-      - name: Upload to release
-        uses: softprops/action-gh-release@v2
+      - name: Build and release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
-          files: |
-            apps/desktop/src-tauri/target/release/bundle/dmg/*.dmg
+          projectPath: apps/desktop
+          tagName: ${{ github.ref_name }}
+          releaseName: "Noah ${{ github.ref_name }}"
+          releaseBody: "See the assets below to download and install."
+          releaseDraft: false
+          prerelease: false
+          includeUpdaterJson: true
