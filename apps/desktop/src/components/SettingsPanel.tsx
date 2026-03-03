@@ -230,7 +230,7 @@ export function SettingsPanel() {
                 {reportingBug ? "Gathering info..." : "Report a Problem"}
               </button>
               <a
-                href="https://console.anthropic.com"
+                href="https://platform.claude.com/settings/keys"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-text-secondary hover:bg-bg-tertiary hover:text-text-primary transition-colors"

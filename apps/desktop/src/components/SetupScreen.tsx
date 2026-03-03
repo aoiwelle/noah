@@ -1,8 +1,25 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import * as commands from "../lib/tauri-commands";
 import { NoahIcon } from "./NoahIcon";
 
 const PROXY_URL = "https://noah-proxy.fly.dev";
+
+const TAGLINES = [
+  "Your personal IT help desk — describe a problem, get it fixed.",
+  "AI-powered computer repair, right on your desktop.",
+  "Describe your problem. Noah fixes it.",
+  "Like having a tech-savvy friend who actually picks up the phone.",
+  "Computer acting up? Tell Noah what's wrong.",
+  "No hold music. No ticket numbers. Just fixes.",
+  "Tech support that doesn't ask you to restart first.",
+  "Your computer problems, solved in plain English.",
+  "The IT guy who never sighs at your question.",
+  "Tell Noah what's broken. Go grab a coffee.",
+  "Finally, tech support that doesn't judge you.",
+  "Fixes your computer. Doesn't judge your browser tabs.",
+  "Like IT support, but without the attitude.",
+  "Help is here. No jargon required.",
+];
 
 interface SetupScreenProps {
   onComplete: () => void;
@@ -16,6 +33,7 @@ export function SetupScreen({ onComplete }: SetupScreenProps) {
   const [apiKey, setApiKey] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const tagline = useMemo(() => TAGLINES[Math.floor(Math.random() * TAGLINES.length)], []);
 
   const handleSave = useCallback(async () => {
     setError(null);
@@ -63,7 +81,7 @@ export function SetupScreen({ onComplete }: SetupScreenProps) {
             Welcome to Noah
           </h1>
           <p className="text-sm text-text-secondary mt-2 text-center leading-relaxed">
-            Noah uses Claude by Anthropic to help fix your computer.
+            {tagline}
           </p>
         </div>
 
@@ -187,7 +205,7 @@ export function SetupScreen({ onComplete }: SetupScreenProps) {
             <p className="text-[11px] text-text-muted text-center leading-relaxed">
               Don't have a key?{" "}
               <a
-                href="https://console.anthropic.com"
+                href="https://platform.claude.com/settings/keys"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-accent-green hover:underline"
