@@ -9,3 +9,7 @@ dist/
 # Signing keys
 *.key
 *.key.pub
+
+# Dev helper scripts (local workflow, not shared)
+run_*.sh
+run_*.ps1
