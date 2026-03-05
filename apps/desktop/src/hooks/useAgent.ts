@@ -19,14 +19,18 @@ function cleanError(err: unknown): string {
 export function useAgent(): UseAgentReturn {
   const [isProcessing, setIsProcessing] = useState(false);
   const addMessage = useChatStore((s) => s.addMessage);
+  const updateMessage = useChatStore((s) => s.updateMessage);
   const markActionTaken = useChatStore((s) => s.markActionTaken);
   const sessionId = useSessionStore((s) => s.sessionId);
   const setChanges = useSessionStore((s) => s.setChanges);
+  const changes = useSessionStore((s) => s.changes);
 
   const sendMessage = useCallback(
     async (text: string) => {
       const trimmed = text.trim();
       if (!trimmed || !sessionId) return;
+
+      const prevChangeIds = new Set(changes.map((c) => c.id));
 
       addMessage({ role: "user", content: trimmed });
       setIsProcessing(true);
@@ -36,8 +40,19 @@ export function useAgent(): UseAgentReturn {
         addMessage({ role: "assistant", content });
 
         try {
-          const changes = await commands.getChanges(sessionId);
-          setChanges(changes);
+          const updatedChanges = await commands.getChanges(sessionId);
+          setChanges(updatedChanges);
+          const newChangeIds = updatedChanges
+            .filter((c) => !prevChangeIds.has(c.id))
+            .map((c) => c.id);
+          if (newChangeIds.length > 0) {
+            // Update the assistant message we just added
+            const latestMsgs = useChatStore.getState().messages;
+            const lastAssistant = latestMsgs[latestMsgs.length - 1];
+            if (lastAssistant?.role === "assistant") {
+              updateMessage(lastAssistant.id, { changeIds: newChangeIds });
+            }
+          }
         } catch {
           // best-effort
         }
@@ -51,12 +66,14 @@ export function useAgent(): UseAgentReturn {
         setIsProcessing(false);
       }
     },
-    [sessionId, addMessage, setChanges],
+    [sessionId, addMessage, updateMessage, setChanges, changes],
   );
 
   const sendConfirmation = useCallback(
     async (messageId: string) => {
       if (!sessionId) return;
+
+      const prevChangeIds = new Set(changes.map((c) => c.id));
 
       markActionTaken(messageId);
       addMessage({ role: "user", content: "Go ahead", actionConfirmation: true });
@@ -67,8 +84,18 @@ export function useAgent(): UseAgentReturn {
         addMessage({ role: "assistant", content });
 
         try {
-          const changes = await commands.getChanges(sessionId);
-          setChanges(changes);
+          const updatedChanges = await commands.getChanges(sessionId);
+          setChanges(updatedChanges);
+          const newChangeIds = updatedChanges
+            .filter((c) => !prevChangeIds.has(c.id))
+            .map((c) => c.id);
+          if (newChangeIds.length > 0) {
+            const latestMsgs = useChatStore.getState().messages;
+            const lastAssistant = latestMsgs[latestMsgs.length - 1];
+            if (lastAssistant?.role === "assistant") {
+              updateMessage(lastAssistant.id, { changeIds: newChangeIds });
+            }
+          }
         } catch {
           // best-effort
         }
@@ -82,7 +109,7 @@ export function useAgent(): UseAgentReturn {
         setIsProcessing(false);
       }
     },
-    [sessionId, addMessage, markActionTaken, setChanges],
+    [sessionId, addMessage, updateMessage, markActionTaken, setChanges, changes],
   );
 
   const cancelProcessing = useCallback(async () => {

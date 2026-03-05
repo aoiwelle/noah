@@ -14,6 +14,7 @@ export interface Message {
   content: string;
   timestamp: number;
   toolCalls?: ToolCall[];
+  changeIds?: string[];
   actionTaken?: boolean;
   actionConfirmation?: boolean;
 }

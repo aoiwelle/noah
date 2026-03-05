@@ -8,6 +8,8 @@ import { parseResponse } from "../lib/parseResponse";
 import * as commands from "../lib/tauri-commands";
 import { NoahIcon } from "./NoahIcon";
 
+const showToolCalls = import.meta.env.DEV;
+
 // ── Tool Call Display ──
 
 function ToolCallItem({ toolCall }: { toolCall: ToolCall }) {
@@ -55,6 +57,47 @@ function ToolCallItem({ toolCall }: { toolCall: ToolCall }) {
               </pre>
             </div>
           )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Changes Block (inline per-message) ──
+
+function ChangesBlock({ changeIds }: { changeIds: string[] }) {
+  const [expanded, setExpanded] = useState(false);
+  const changes = useSessionStore((s) => s.changes);
+  const matched = changes.filter((c) => changeIds.includes(c.id));
+
+  if (matched.length === 0) return null;
+
+  return (
+    <div className="mt-2 rounded-md border border-border-primary bg-bg-primary/50 overflow-hidden">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-left cursor-pointer hover:bg-bg-tertiary/30 transition-colors"
+      >
+        <svg width="12" height="12" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M8.5 1.5L12.5 5.5L5 13H1V9L8.5 1.5Z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+        </svg>
+        <span className="text-accent-purple font-medium">
+          {matched.length} change{matched.length !== 1 ? "s" : ""} made
+        </span>
+        <span className="text-text-muted ml-auto">
+          {expanded ? "\u25B4" : "\u25BE"}
+        </span>
+      </button>
+      {expanded && (
+        <div className="px-3 py-2 border-t border-border-primary text-xs space-y-1.5">
+          {matched.map((c) => (
+            <div key={c.id} className="flex items-start gap-2">
+              <span className="px-1 py-0.5 rounded bg-accent-purple/15 text-accent-purple text-[10px] font-mono flex-shrink-0">
+                {c.tool_name}
+              </span>
+              <span className="text-text-secondary leading-snug">{c.description}</span>
+            </div>
+          ))}
         </div>
       )}
     </div>
@@ -334,12 +377,16 @@ function MessageBubble({ message }: { message: Message }) {
           {message.content}
         </div>
 
-        {message.toolCalls && message.toolCalls.length > 0 && (
+        {showToolCalls && message.toolCalls && message.toolCalls.length > 0 && (
           <div className="mt-1">
             {message.toolCalls.map((tc) => (
               <ToolCallItem key={tc.id} toolCall={tc} />
             ))}
           </div>
+        )}
+
+        {message.changeIds && message.changeIds.length > 0 && (
+          <ChangesBlock changeIds={message.changeIds} />
         )}
 
         <div

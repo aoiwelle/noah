@@ -12,6 +12,9 @@ export function SessionBar({ session }: SessionBarProps) {
   const historyOpen = useSessionStore((s) => s.historyOpen);
   const toggleKnowledge = useSessionStore((s) => s.toggleKnowledge);
   const knowledgeOpen = useSessionStore((s) => s.knowledgeOpen);
+  const toggleChangeLog = useSessionStore((s) => s.toggleChangeLog);
+  const changeLogOpen = useSessionStore((s) => s.changeLogOpen);
+  const changes = useSessionStore((s) => s.changes);
   const toggleSettings = useSessionStore((s) => s.toggleSettings);
   const settingsOpen = useSessionStore((s) => s.settingsOpen);
 
@@ -101,6 +104,43 @@ export function SessionBar({ session }: SessionBarProps) {
           </svg>
           Knowledge
         </button>
+
+        {changes.length > 0 && (
+          <button
+            onClick={toggleChangeLog}
+            title="Changes made to your system"
+            className={`
+              flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs
+              transition-colors duration-150 cursor-pointer
+              ${
+                changeLogOpen
+                  ? "bg-accent-green/20 text-accent-green"
+                  : "text-text-secondary hover:text-text-primary hover:bg-bg-tertiary"
+              }
+            `}
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 14 14"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M8.5 1.5L12.5 5.5L5 13H1V9L8.5 1.5Z"
+                stroke="currentColor"
+                strokeWidth="1.1"
+                strokeLinejoin="round"
+              />
+              <path
+                d="M7 3L11 7"
+                stroke="currentColor"
+                strokeWidth="1.1"
+              />
+            </svg>
+            Changes ({changes.length})
+          </button>
+        )}
 
         <button
           onClick={toggleSettings}

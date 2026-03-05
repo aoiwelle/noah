@@ -67,11 +67,13 @@ function SessionItem({
   onSelect,
   onExport,
   onDelete,
+  onViewChanges,
 }: {
   session: SessionRecord;
   onSelect: (sessionId: string) => void;
   onExport: (sessionId: string, title: string) => void;
   onDelete: (sessionId: string) => void;
+  onViewChanges: (sessionId: string) => void;
 }) {
   const duration = formatDuration(session.created_at, session.ended_at);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -108,7 +110,13 @@ function SessionItem({
             </span>
           )}
           {session.change_count > 0 && (
-            <span className="text-[10px] text-accent-purple">
+            <span
+              onClick={(e) => {
+                e.stopPropagation();
+                onViewChanges(session.id);
+              }}
+              className="text-[10px] text-accent-purple hover:text-accent-purple/80 hover:underline cursor-pointer"
+            >
               {session.change_count} change
               {session.change_count !== 1 ? "s" : ""}
             </span>
@@ -170,6 +178,8 @@ export function SessionHistory() {
   const setHistoryOpen = useSessionStore((s) => s.setHistoryOpen);
   const pastSessions = useSessionStore((s) => s.pastSessions);
   const setPastSessions = useSessionStore((s) => s.setPastSessions);
+  const setChanges = useSessionStore((s) => s.setChanges);
+  const setChangeLogOpen = useSessionStore((s) => s.setChangeLogOpen);
   const { switchToProblem } = useSession();
 
   const loadSessions = useCallback(async () => {
@@ -219,6 +229,19 @@ export function SessionHistory() {
       setHistoryOpen(false);
     },
     [switchToProblem, setHistoryOpen],
+  );
+
+  const handleViewChanges = useCallback(
+    async (sessionId: string) => {
+      try {
+        const changes = await commands.getChanges(sessionId);
+        setChanges(changes);
+        setChangeLogOpen(true);
+      } catch (err) {
+        console.error("Failed to load changes:", err);
+      }
+    },
+    [setChanges, setChangeLogOpen],
   );
 
   useEffect(() => {
@@ -306,6 +329,7 @@ export function SessionHistory() {
                   onSelect={handleSelectSession}
                   onExport={handleExport}
                   onDelete={handleDelete}
+                  onViewChanges={handleViewChanges}
                 />
               ))}
             </div>
