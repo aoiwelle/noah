@@ -194,3 +194,21 @@ export interface FeedbackContext {
 export async function getFeedbackContext(): Promise<FeedbackContext> {
   return await invoke<FeedbackContext>("get_feedback_context");
 }
+
+// ── Proactive Suggestions ──
+
+export async function getProactiveEnabled(): Promise<boolean> {
+  return await invoke<boolean>("get_proactive_enabled");
+}
+
+export async function setProactiveEnabled(enabled: boolean): Promise<void> {
+  await invoke<void>("set_proactive_enabled", { enabled });
+}
+
+export async function dismissProactiveSuggestion(id: string): Promise<void> {
+  await invoke<void>("dismiss_proactive_suggestion", { id });
+}
+
+export async function actOnProactiveSuggestion(id: string): Promise<void> {
+  await invoke<void>("act_on_proactive_suggestion", { id });
+}

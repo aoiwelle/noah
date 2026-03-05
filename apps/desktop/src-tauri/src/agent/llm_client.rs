@@ -9,6 +9,15 @@ const API_VERSION: &str = "2023-06-01";
 const MAX_TOKENS: u32 = 4096;
 const REQUEST_TIMEOUT_SECS: u64 = 90;
 
+// ── Diagnostic analysis result ─────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DiagnosticAnalysis {
+    pub noteworthy: bool,
+    pub headline: String,
+    pub detail: String,
+}
+
 // ── Auth mode ─────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone)]
@@ -110,6 +119,29 @@ struct ApiRequest {
 pub struct LlmClient {
     auth: AuthMode,
     client: reqwest::Client,
+}
+
+/// Strip markdown code fences (```json ... ```) from an LLM response.
+fn strip_markdown_fences(s: &str) -> String {
+    let trimmed = s.trim();
+    if trimmed.starts_with("```") && trimmed.ends_with("```") {
+        // Remove first line (```json or ```) and last line (```).
+        let inner = trimmed
+            .strip_prefix("```")
+            .unwrap_or(trimmed);
+        // Skip the language tag on the first line.
+        let inner = match inner.find('\n') {
+            Some(pos) => &inner[pos + 1..],
+            None => inner,
+        };
+        // Remove trailing ```.
+        let inner = inner
+            .strip_suffix("```")
+            .unwrap_or(inner);
+        inner.trim().to_string()
+    } else {
+        trimmed.to_string()
+    }
 }
 
 /// Map an HTTP status code from the Anthropic API to a user-friendly error message.
@@ -280,6 +312,77 @@ impl LlmClient {
         Ok(summary)
     }
 
+    /// Analyze diagnostic tool output using Haiku to determine if it's noteworthy.
+    pub async fn analyze_diagnostics(&self, category: &str, tool_output: &str) -> Result<DiagnosticAnalysis> {
+        let system = format!(
+            "You are a conservative IT health monitor analyzing {} diagnostics.\n\
+             Only flag genuinely concerning issues:\n\
+             - Disk usage >90% or a single reclaimable folder >5GB\n\
+             - Recent crash reports (<24h) for user-facing apps\n\
+             - A process consuming >90% CPU persistently\n\
+             - Critically low RAM (<500MB free) while idle\n\n\
+             Respond in exactly this JSON format (no markdown, no extra text):\n\
+             {{\"noteworthy\": true/false, \"headline\": \"~60 char summary\", \"detail\": \"1-2 sentence explanation\"}}\n\n\
+             If nothing is concerning, set noteworthy to false with empty headline and detail.",
+            category
+        );
+
+        let body = ApiRequest {
+            model: TITLE_MODEL.to_string(),
+            max_tokens: 200,
+            system,
+            messages: vec![Message {
+                role: "user".to_string(),
+                content: MessageContent::Text(tool_output.to_string()),
+            }],
+            tools: vec![],
+        };
+
+        let builder = self
+            .client
+            .post(self.api_url())
+            .header("anthropic-version", API_VERSION)
+            .header("content-type", "application/json")
+            .json(&body);
+        let resp = self.apply_auth(builder)
+            .send()
+            .await
+            .context("Diagnostic analysis request failed")?;
+
+        let status = resp.status();
+        if !status.is_success() {
+            let error_body = resp.text().await.unwrap_or_default();
+            anyhow::bail!("{}", friendly_api_error(status, &error_body));
+        }
+
+        let response: Response = resp
+            .json()
+            .await
+            .context("Failed to parse diagnostic analysis response")?;
+
+        let text = response
+            .content
+            .iter()
+            .find_map(|b| match b {
+                ResponseBlock::Text { text } => Some(text.trim().to_string()),
+                _ => None,
+            })
+            .unwrap_or_default();
+
+        // Strip markdown code fences if Haiku wrapped the response.
+        let cleaned = strip_markdown_fences(&text);
+
+        // Parse the JSON response from Haiku.
+        let analysis: DiagnosticAnalysis = serde_json::from_str(&cleaned)
+            .unwrap_or(DiagnosticAnalysis {
+                noteworthy: false,
+                headline: String::new(),
+                detail: String::new(),
+            });
+
+        Ok(analysis)
+    }
+
     pub async fn send_message(
         &self,
         messages: Vec<Message>,
@@ -433,6 +536,89 @@ mod tests {
         assert!(!client.has_api_key());
         client.set_api_key("sk-ant-test".to_string());
         assert!(client.has_api_key());
+    }
+
+    // ── DiagnosticAnalysis parsing tests ──────────────────────────────
+
+    #[test]
+    fn test_diagnostic_analysis_parses_noteworthy() {
+        let json = r#"{"noteworthy": true, "headline": "Disk 95% full", "detail": "Your main drive has only 12GB free."}"#;
+        let analysis: DiagnosticAnalysis = serde_json::from_str(json).unwrap();
+        assert!(analysis.noteworthy);
+        assert_eq!(analysis.headline, "Disk 95% full");
+        assert_eq!(analysis.detail, "Your main drive has only 12GB free.");
+    }
+
+    #[test]
+    fn test_diagnostic_analysis_parses_not_noteworthy() {
+        let json = r#"{"noteworthy": false, "headline": "", "detail": ""}"#;
+        let analysis: DiagnosticAnalysis = serde_json::from_str(json).unwrap();
+        assert!(!analysis.noteworthy);
+        assert!(analysis.headline.is_empty());
+    }
+
+    #[test]
+    fn test_diagnostic_analysis_malformed_json_fallback() {
+        // The analyze_diagnostics method uses unwrap_or on parse failure.
+        // Verify the fallback works.
+        let bad_json = "This is not JSON at all";
+        let analysis: DiagnosticAnalysis = serde_json::from_str(bad_json)
+            .unwrap_or(DiagnosticAnalysis {
+                noteworthy: false,
+                headline: String::new(),
+                detail: String::new(),
+            });
+        assert!(!analysis.noteworthy);
+    }
+
+    #[test]
+    fn test_diagnostic_analysis_missing_fields_fails() {
+        // Partial JSON should fail to parse (all fields are required).
+        let partial = r#"{"noteworthy": true}"#;
+        let result: Result<DiagnosticAnalysis, _> = serde_json::from_str(partial);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_diagnostic_analysis_extra_fields_ignored() {
+        // Haiku might include extra fields — serde should ignore them.
+        let json = r#"{"noteworthy": false, "headline": "", "detail": "", "confidence": 0.9}"#;
+        let analysis: DiagnosticAnalysis = serde_json::from_str(json).unwrap();
+        assert!(!analysis.noteworthy);
+    }
+
+    #[test]
+    fn test_diagnostic_analysis_with_markdown_fenced_json() {
+        // Haiku sometimes wraps its response in ```json ... ```.
+        // Verify strip_markdown_fences handles this.
+        let fenced = "```json\n{\"noteworthy\": true, \"headline\": \"test\", \"detail\": \"x\"}\n```";
+        let cleaned = strip_markdown_fences(fenced);
+        let analysis: DiagnosticAnalysis = serde_json::from_str(&cleaned).unwrap();
+        assert!(analysis.noteworthy);
+        assert_eq!(analysis.headline, "test");
+    }
+
+    #[test]
+    fn test_strip_markdown_fences_plain_json() {
+        let plain = r#"{"noteworthy": false, "headline": "", "detail": ""}"#;
+        let cleaned = strip_markdown_fences(plain);
+        assert_eq!(cleaned, plain);
+    }
+
+    #[test]
+    fn test_strip_markdown_fences_bare_backticks() {
+        let fenced = "```\n{\"noteworthy\": true, \"headline\": \"a\", \"detail\": \"b\"}\n```";
+        let cleaned = strip_markdown_fences(fenced);
+        let analysis: DiagnosticAnalysis = serde_json::from_str(&cleaned).unwrap();
+        assert!(analysis.noteworthy);
+    }
+
+    #[test]
+    fn test_strip_markdown_fences_with_whitespace() {
+        let fenced = "  ```json\n{\"noteworthy\": false, \"headline\": \"\", \"detail\": \"\"}\n```  ";
+        let cleaned = strip_markdown_fences(fenced);
+        let analysis: DiagnosticAnalysis = serde_json::from_str(&cleaned).unwrap();
+        assert!(!analysis.noteworthy);
     }
 
     #[test]

@@ -56,7 +56,7 @@ pub struct SessionRecord {
 }
 
 /// Current schema version. Increment when adding migrations.
-const SCHEMA_VERSION: i32 = 5;
+const SCHEMA_VERSION: i32 = 6;
 
 /// Initialise the journal database, creating tables if they don't exist,
 /// then run any pending migrations.
@@ -243,8 +243,26 @@ fn apply_migrations(conn: &Connection, current: i32) -> Result<()> {
         set_schema_version(conn, 5)?;
     }
 
+    if current < 6 {
+        // Migration 6: Proactive suggestions table.
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS proactive_suggestions (
+                id         TEXT PRIMARY KEY,
+                created_at TEXT NOT NULL,
+                category   TEXT NOT NULL,
+                headline   TEXT NOT NULL,
+                detail     TEXT NOT NULL,
+                raw_data   TEXT NOT NULL,
+                dismissed  INTEGER NOT NULL DEFAULT 0,
+                acted_on   INTEGER NOT NULL DEFAULT 0
+            );",
+        )
+        .context("Migration 6 failed")?;
+        set_schema_version(conn, 6)?;
+    }
+
     // ── Add new migrations here ──
-    // if current < 6 { ... }
+    // if current < 7 { ... }
 
     Ok(())
 }
@@ -735,6 +753,106 @@ mod tests {
         assert!(!obj.contains_key("changeCount"));
     }
 
+    // ── Proactive suggestion tests ──────────────────────────────────────
+
+    #[test]
+    fn test_migration_6_creates_proactive_suggestions_table() {
+        let conn = test_db();
+        let count: i32 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='proactive_suggestions'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(count, 1);
+    }
+
+    #[test]
+    fn test_schema_version_is_6() {
+        let conn = test_db();
+        let version = get_schema_version(&conn);
+        assert_eq!(version, 6);
+    }
+
+    #[test]
+    fn test_insert_and_query_proactive_suggestion() {
+        let conn = test_db();
+        insert_proactive_suggestion(
+            &conn,
+            "sug-1",
+            "disk",
+            "Disk almost full",
+            "Your main drive is 95% full.",
+            "df -h output here",
+        )
+        .unwrap();
+
+        // Verify it was inserted.
+        let (headline, dismissed, acted_on): (String, i32, i32) = conn
+            .query_row(
+                "SELECT headline, dismissed, acted_on FROM proactive_suggestions WHERE id = ?1",
+                rusqlite::params!["sug-1"],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .unwrap();
+        assert_eq!(headline, "Disk almost full");
+        assert_eq!(dismissed, 0);
+        assert_eq!(acted_on, 0);
+    }
+
+    #[test]
+    fn test_dismiss_proactive_suggestion() {
+        let conn = test_db();
+        insert_proactive_suggestion(&conn, "sug-2", "perf", "High CPU", "Details", "raw")
+            .unwrap();
+
+        dismiss_proactive_suggestion(&conn, "sug-2").unwrap();
+
+        let dismissed: i32 = conn
+            .query_row(
+                "SELECT dismissed FROM proactive_suggestions WHERE id = ?1",
+                rusqlite::params!["sug-2"],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(dismissed, 1);
+    }
+
+    #[test]
+    fn test_mark_suggestion_acted_on() {
+        let conn = test_db();
+        insert_proactive_suggestion(&conn, "sug-3", "crash", "App crashed", "Details", "raw")
+            .unwrap();
+
+        mark_suggestion_acted_on(&conn, "sug-3").unwrap();
+
+        let acted_on: i32 = conn
+            .query_row(
+                "SELECT acted_on FROM proactive_suggestions WHERE id = ?1",
+                rusqlite::params!["sug-3"],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(acted_on, 1);
+    }
+
+    #[test]
+    fn test_dismiss_nonexistent_suggestion_is_ok() {
+        // Dismiss on a missing ID should succeed (0 rows affected, not an error).
+        let conn = test_db();
+        let result = dismiss_proactive_suggestion(&conn, "does-not-exist");
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_duplicate_suggestion_id_fails() {
+        let conn = test_db();
+        insert_proactive_suggestion(&conn, "dup-1", "disk", "A", "B", "C").unwrap();
+        let result = insert_proactive_suggestion(&conn, "dup-1", "disk", "D", "E", "F");
+        assert!(result.is_err(), "Duplicate primary key should fail");
+    }
+
     #[test]
     fn test_journal_entry_serializes_with_snake_case_keys() {
         // This test ensures the JSON keys match what the TypeScript frontend expects.
@@ -830,6 +948,47 @@ pub fn get_recent_traces(conn: &Connection, limit: usize) -> Result<Vec<(String,
         .collect();
 
     Ok(truncated)
+}
+
+// ── Proactive suggestions ────────────────────────────────────────────
+
+/// Insert a proactive suggestion into the database.
+pub fn insert_proactive_suggestion(
+    conn: &Connection,
+    id: &str,
+    category: &str,
+    headline: &str,
+    detail: &str,
+    raw_data: &str,
+) -> Result<()> {
+    let created_at = chrono::Utc::now().to_rfc3339();
+    conn.execute(
+        "INSERT INTO proactive_suggestions (id, created_at, category, headline, detail, raw_data)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        rusqlite::params![id, created_at, category, headline, detail, raw_data],
+    )
+    .context("Failed to insert proactive suggestion")?;
+    Ok(())
+}
+
+/// Mark a proactive suggestion as dismissed.
+pub fn dismiss_proactive_suggestion(conn: &Connection, id: &str) -> Result<()> {
+    conn.execute(
+        "UPDATE proactive_suggestions SET dismissed = 1 WHERE id = ?1",
+        rusqlite::params![id],
+    )
+    .context("Failed to dismiss proactive suggestion")?;
+    Ok(())
+}
+
+/// Mark a proactive suggestion as acted on.
+pub fn mark_suggestion_acted_on(conn: &Connection, id: &str) -> Result<()> {
+    conn.execute(
+        "UPDATE proactive_suggestions SET acted_on = 1 WHERE id = ?1",
+        rusqlite::params![id],
+    )
+    .context("Failed to mark suggestion acted on")?;
+    Ok(())
 }
 
 /// Set a setting value by key.

@@ -24,6 +24,25 @@ export function SettingsPanel() {
     }
   }, [settingsOpen]);
 
+  const [proactiveEnabled, setProactiveEnabled] = useState(true);
+
+  useEffect(() => {
+    if (settingsOpen) {
+      commands.getProactiveEnabled().then(setProactiveEnabled).catch(() => {});
+    }
+  }, [settingsOpen]);
+
+  const handleToggleProactive = useCallback(async () => {
+    const next = !proactiveEnabled;
+    setProactiveEnabled(next);
+    try {
+      await commands.setProactiveEnabled(next);
+    } catch (err) {
+      console.error("Failed to save proactive setting:", err);
+      setProactiveEnabled(!next); // revert on error
+    }
+  }, [proactiveEnabled]);
+
   const [reportingBug, setReportingBug] = useState(false);
 
   const handleReportProblem = useCallback(async () => {
@@ -192,6 +211,36 @@ export function SettingsPanel() {
                 </button>
               </>
             )}
+          </section>
+
+          {/* Proactive Suggestions */}
+          <section>
+            <h3 className="text-xs font-semibold text-text-primary uppercase tracking-wider mb-2">
+              Proactive Suggestions
+            </h3>
+            <div className="flex items-center justify-between">
+              <div className="flex-1 min-w-0 mr-3">
+                <p className="text-xs text-text-secondary">
+                  Notify me of potential issues
+                </p>
+                <p className="text-[10px] text-text-muted mt-0.5">
+                  Noah will periodically check your system and alert you if
+                  something needs attention. At most once per day.
+                </p>
+              </div>
+              <button
+                onClick={handleToggleProactive}
+                className={`relative w-9 h-5 rounded-full transition-colors cursor-pointer shrink-0 ${
+                  proactiveEnabled ? "bg-accent-green" : "bg-bg-tertiary"
+                }`}
+              >
+                <span
+                  className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
+                    proactiveEnabled ? "translate-x-4" : "translate-x-0"
+                  }`}
+                />
+              </button>
+            </div>
           </section>
 
           {/* Links */}

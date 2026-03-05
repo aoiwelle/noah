@@ -129,6 +129,45 @@ pub async fn track_event(
         .map_err(|e| format!("Failed to track event: {}", e))
 }
 
+#[tauri::command]
+pub async fn get_proactive_enabled(state: State<'_, AppState>) -> Result<bool, String> {
+    let conn = state.db.lock().await;
+    let value = journal::get_setting(&conn, "proactive_enabled")
+        .map_err(|e| format!("Failed to get setting: {}", e))?;
+    // Default is enabled (None or "true").
+    Ok(value.as_deref() != Some("false"))
+}
+
+#[tauri::command]
+pub async fn set_proactive_enabled(
+    state: State<'_, AppState>,
+    enabled: bool,
+) -> Result<(), String> {
+    let conn = state.db.lock().await;
+    journal::set_setting(&conn, "proactive_enabled", if enabled { "true" } else { "false" })
+        .map_err(|e| format!("Failed to save setting: {}", e))
+}
+
+#[tauri::command]
+pub async fn dismiss_proactive_suggestion(
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<(), String> {
+    let conn = state.db.lock().await;
+    journal::dismiss_proactive_suggestion(&conn, &id)
+        .map_err(|e| format!("Failed to dismiss suggestion: {}", e))
+}
+
+#[tauri::command]
+pub async fn act_on_proactive_suggestion(
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<(), String> {
+    let conn = state.db.lock().await;
+    journal::mark_suggestion_acted_on(&conn, &id)
+        .map_err(|e| format!("Failed to mark suggestion: {}", e))
+}
+
 #[derive(Debug, Serialize)]
 pub struct FeedbackContext {
     pub version: String,

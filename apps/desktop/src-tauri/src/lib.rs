@@ -4,6 +4,7 @@ mod knowledge;
 mod machine_context;
 mod platform;
 mod playbooks;
+mod proactive;
 mod safety;
 
 use std::collections::HashMap;
@@ -163,6 +164,7 @@ pub fn run() {
             // Load auth: proxy config, API key file, or env var.
             let auth = load_auth(&app_dir);
             let llm = LlmClient::with_auth(auth);
+            let llm_for_monitor = llm.clone();
 
             let pending_approvals: PendingApprovals =
                 Arc::new(Mutex::new(HashMap::<String, oneshot::Sender<bool>>::new()));
@@ -180,11 +182,17 @@ pub fn run() {
             app.manage(AppState {
                 orchestrator: Mutex::new(orchestrator),
                 pending_approvals,
-                db: db_arc,
+                db: db_arc.clone(),
                 app_dir,
                 knowledge_dir,
                 cancelled,
             });
+
+            // Spawn the proactive health monitor in the background.
+            let monitor = proactive::ProactiveMonitor::new(
+                llm_for_monitor, db_arc, app.handle().clone(),
+            );
+            tauri::async_runtime::spawn(async move { monitor.run_forever().await });
 
             Ok(())
         })
@@ -214,6 +222,10 @@ pub fn run() {
             commands::settings::set_telemetry_consent,
             commands::settings::track_event,
             commands::settings::get_feedback_context,
+            commands::settings::get_proactive_enabled,
+            commands::settings::set_proactive_enabled,
+            commands::settings::dismiss_proactive_suggestion,
+            commands::settings::act_on_proactive_suggestion,
             commands::knowledge::list_knowledge,
             commands::knowledge::read_knowledge_file,
             commands::knowledge::delete_knowledge_file,
