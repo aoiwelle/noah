@@ -142,7 +142,7 @@ export function KnowledgePanel() {
       />
 
       {/* Slide-out panel */}
-      <div className="fixed top-0 left-0 bottom-0 z-40 w-80 bg-bg-secondary border-r border-border-primary shadow-2xl flex flex-col animate-slide-in-left">
+      <div className="fixed top-0 right-0 bottom-0 z-40 w-80 bg-bg-secondary border-l border-border-primary shadow-2xl flex flex-col animate-slide-in-right">
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-border-primary">
           {selectedPath ? (

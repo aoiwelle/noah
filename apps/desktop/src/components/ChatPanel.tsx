@@ -128,7 +128,7 @@ function ActionCard({
       <div className="max-w-[80%] rounded-xl border border-border-primary bg-bg-assistant-bubble overflow-hidden">
         {/* Header */}
         <div className="px-4 pt-3 pb-1">
-          <span className="text-[10px] font-medium uppercase tracking-wider text-accent-green">
+          <span className="text-[11px] font-semibold text-accent-green">
             Noah
           </span>
         </div>
@@ -622,14 +622,14 @@ function SuggestionCards({
 
   return (
     <div className="flex flex-col items-center justify-center h-full text-text-muted">
-      <NoahIcon className="w-12 h-12 rounded-2xl mb-4" alt="Noah" />
-      <p className="text-sm font-medium text-text-primary mb-1">
-        What can I help with?
+      <NoahIcon className="w-14 h-14 rounded-2xl mb-5" alt="Noah" />
+      <p className="text-base font-semibold text-text-primary mb-1">
+        How can I help?
       </p>
-      <p className="text-xs text-text-muted mb-5">
+      <p className="text-sm text-text-secondary mb-6">
         {contextual.length > 0
           ? "Based on what I know about your system, or try something new."
-          : "Try one of these, or type anything below."}
+          : "Describe your problem, or try one of these:"}
       </p>
       <div className="grid grid-cols-2 gap-2.5 w-full max-w-sm">
         {allSuggestions.map((s) => (

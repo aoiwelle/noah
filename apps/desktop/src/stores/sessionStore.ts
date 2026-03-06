@@ -33,6 +33,14 @@ interface SessionState {
   setPastSessions: (sessions: SessionRecord[]) => void;
 }
 
+// Helper: close all side panels.
+const allPanelsClosed = {
+  changeLogOpen: false,
+  historyOpen: false,
+  knowledgeOpen: false,
+  settingsOpen: false,
+};
+
 export const useSessionStore = create<SessionState>((set) => ({
   sessionId: null,
   isActive: false,
@@ -74,25 +82,42 @@ export const useSessionStore = create<SessionState>((set) => ({
 
   setPendingApproval: (req) => set({ pendingApproval: req }),
 
+  // Panels are mutually exclusive — opening one closes the others.
   toggleChangeLog: () =>
-    set((state) => ({ changeLogOpen: !state.changeLogOpen })),
+    set((state) => ({
+      ...allPanelsClosed,
+      changeLogOpen: !state.changeLogOpen,
+    })),
 
-  setChangeLogOpen: (open) => set({ changeLogOpen: open }),
+  setChangeLogOpen: (open) =>
+    set(open ? { ...allPanelsClosed, changeLogOpen: true } : { changeLogOpen: false }),
 
   toggleHistory: () =>
-    set((state) => ({ historyOpen: !state.historyOpen })),
+    set((state) => ({
+      ...allPanelsClosed,
+      historyOpen: !state.historyOpen,
+    })),
 
-  setHistoryOpen: (open) => set({ historyOpen: open }),
+  setHistoryOpen: (open) =>
+    set(open ? { ...allPanelsClosed, historyOpen: true } : { historyOpen: false }),
 
   toggleKnowledge: () =>
-    set((state) => ({ knowledgeOpen: !state.knowledgeOpen })),
+    set((state) => ({
+      ...allPanelsClosed,
+      knowledgeOpen: !state.knowledgeOpen,
+    })),
 
-  setKnowledgeOpen: (open) => set({ knowledgeOpen: open }),
+  setKnowledgeOpen: (open) =>
+    set(open ? { ...allPanelsClosed, knowledgeOpen: true } : { knowledgeOpen: false }),
 
   toggleSettings: () =>
-    set((state) => ({ settingsOpen: !state.settingsOpen })),
+    set((state) => ({
+      ...allPanelsClosed,
+      settingsOpen: !state.settingsOpen,
+    })),
 
-  setSettingsOpen: (open) => set({ settingsOpen: open }),
+  setSettingsOpen: (open) =>
+    set(open ? { ...allPanelsClosed, settingsOpen: true } : { settingsOpen: false }),
 
   setPastSessions: (sessions) => set({ pastSessions: sessions }),
 }));
