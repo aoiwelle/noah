@@ -385,10 +385,6 @@ function MessageBubble({ message }: { message: Message }) {
           </div>
         )}
 
-        {message.changeIds && message.changeIds.length > 0 && (
-          <ChangesBlock changeIds={message.changeIds} />
-        )}
-
         <div
           className={`text-[10px] mt-1 ${
             isUser ? "text-white/50 text-right" : "text-text-muted"
@@ -431,10 +427,12 @@ function MessageDisplay({
 
   // Parse assistant messages for structured format
   const parsed = parseResponse(message.content);
+  const hasActions = message.changeIds && message.changeIds.length > 0;
 
+  let card: React.ReactNode;
   switch (parsed.type) {
     case "action":
-      return (
+      card = (
         <ActionCard
           situation={parsed.situation}
           plan={parsed.plan}
@@ -445,13 +443,27 @@ function MessageDisplay({
           onDoIt={() => onConfirm(message.id)}
         />
       );
+      break;
     case "done":
-      return <DoneCard summary={parsed.summary} timestamp={message.timestamp} isLatestDone={isLatestDone} sessionId={sessionId} />;
+      card = <DoneCard summary={parsed.summary} timestamp={message.timestamp} isLatestDone={isLatestDone} sessionId={sessionId} />;
+      break;
     case "info":
-      return <InfoCard summary={parsed.summary} timestamp={message.timestamp} />;
+      card = <InfoCard summary={parsed.summary} timestamp={message.timestamp} />;
+      break;
     default:
-      return <MessageBubble message={message} />;
+      card = <MessageBubble message={message} />;
   }
+
+  if (!hasActions) return card;
+
+  return (
+    <div>
+      {card}
+      <div className="mt-1 ml-1 max-w-[80%]">
+        <ChangesBlock changeIds={message.changeIds!} />
+      </div>
+    </div>
+  );
 }
 
 // ── Humanize tool names for the thinking indicator ──
