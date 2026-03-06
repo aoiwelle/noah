@@ -1,19 +1,9 @@
 import { useEffect, useCallback } from "react";
+import { listen } from "@tauri-apps/api/event";
 import { useSessionStore } from "../stores/sessionStore";
 import { useChatStore } from "../stores/chatStore";
 import * as commands from "../lib/tauri-commands";
 import type { ApprovalRequest } from "../lib/tauri-commands";
-
-// Try to import Tauri event listener; in non-Tauri environments this won't work
-let listenFn: typeof import("@tauri-apps/api/event").listen | null = null;
-try {
-  // Dynamic import handled at top-level for the listener setup
-  import("@tauri-apps/api/event").then((mod) => {
-    listenFn = mod.listen;
-  });
-} catch {
-  // Not in a Tauri environment
-}
 
 export function ActionApproval() {
   const pendingApproval = useSessionStore((s) => s.pendingApproval);
@@ -22,30 +12,15 @@ export function ActionApproval() {
 
   // Listen for approval requests from the Tauri backend
   useEffect(() => {
-    let unlisten: (() => void) | undefined;
-
-    const setup = async () => {
-      if (!listenFn) {
-        try {
-          const { listen } = await import("@tauri-apps/api/event");
-          listenFn = listen;
-        } catch {
-          return;
-        }
-      }
-
-      unlisten = await listenFn<ApprovalRequest>(
-        "approval-request",
-        (event) => {
-          setPendingApproval(event.payload);
-        },
-      );
-    };
-
-    setup();
+    const unlisten = listen<ApprovalRequest>(
+      "approval-request",
+      (event) => {
+        setPendingApproval(event.payload);
+      },
+    );
 
     return () => {
-      if (unlisten) unlisten();
+      unlisten.then((fn) => fn());
     };
   }, [setPendingApproval]);
 

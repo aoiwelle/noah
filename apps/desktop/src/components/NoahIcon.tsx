@@ -1,4 +1,4 @@
-import noahIcon from "../../src-tauri/icons/128x128.png";
+import noahIcon from "../assets/noah-logo.svg";
 
 interface NoahIconProps {
   className?: string;
