@@ -637,7 +637,7 @@ function SuggestionCards({
             key={s.label}
             onClick={() => onSelect(s.label)}
             disabled={disabled}
-            className="flex items-start gap-2.5 px-3.5 py-3 rounded-xl border border-border-primary/60 bg-bg-secondary/80 hover:bg-bg-tertiary/70 hover:border-accent-blue/30 transition-all text-left cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md"
+            className="flex items-start gap-2.5 px-3.5 py-3 rounded-xl border border-border-primary bg-bg-secondary hover:bg-bg-tertiary hover:border-accent-blue/40 transition-all text-left cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <span className="text-base mt-0.5">{s.icon}</span>
             <div className="min-w-0">
@@ -753,9 +753,9 @@ export function ChatPanel() {
       </div>
 
       {/* Input area */}
-      <div className="border-t border-border-primary/60 bg-bg-secondary/90 px-4 py-3">
+      <div className="border-t border-border-primary bg-bg-secondary px-4 py-3">
           <div className="max-w-2xl mx-auto">
-            <div className="flex items-end gap-2 bg-bg-input rounded-xl border border-border-primary/60 focus-within:border-accent-blue/40 transition-colors shadow-sm">
+            <div className="flex items-end gap-2 bg-bg-input rounded-xl border border-border-primary focus-within:border-accent-blue/40 transition-colors">
               <textarea
                 ref={textareaRef}
                 value={input}

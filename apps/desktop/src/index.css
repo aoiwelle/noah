@@ -1,43 +1,50 @@
 @import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap");
 @import "tailwindcss";
 
-/* ── Noah — Warm Professional Theme ── */
+/* ── Noah — Calm Professional Theme ──
+ *
+ * Design intent: Noah is IT support for non-technical people.
+ * They're often stressed when they open this app. The palette
+ * should feel like a calm, competent professional's office —
+ * deep navy base (trust, authority), teal accent (the brand),
+ * clean readable text, and enough color to feel alive.
+ */
 @theme {
-  /* Warm dark backgrounds — visible brown/amber undertone */
-  --color-bg-primary: #1c1917;
-  --color-bg-secondary: #292524;
-  --color-bg-tertiary: #3d3632;
-  --color-bg-input: #292524;
-  --color-bg-user-bubble: #2d6a5e;
-  --color-bg-assistant-bubble: #28231f;
-  --color-bg-system-bubble: #231f1c;
-  --color-bg-overlay: rgba(10, 8, 6, 0.55);
+  /* Deep navy backgrounds — professional, not cave-like */
+  --color-bg-primary: #0f1729;
+  --color-bg-secondary: #182036;
+  --color-bg-tertiary: #243049;
+  --color-bg-input: #1a2440;
+  --color-bg-user-bubble: #1a5c52;
+  --color-bg-assistant-bubble: #182036;
+  --color-bg-system-bubble: #141c30;
+  --color-bg-overlay: rgba(8, 12, 24, 0.6);
 
-  /* Warm cream text */
-  --color-text-primary: #f5f0ea;
-  --color-text-secondary: #a8a29e;
-  --color-text-muted: #78716c;
+  /* Clean, high-contrast text */
+  --color-text-primary: #eef2f7;
+  --color-text-secondary: #8b9ab8;
+  --color-text-muted: #566888;
   --color-text-inverse: #ffffff;
 
-  /* Warm borders */
-  --color-border-primary: #3d3532;
+  /* Subtle blue-tinted borders */
+  --color-border-primary: #263354;
   --color-border-focus: #2dd4bf;
 
-  /* Accents — friendly teal + warm companions */
+  /* Teal-forward accents — brand color leads */
   --color-accent-blue: #2dd4bf;
   --color-accent-green: #34d399;
   --color-accent-red: #f87171;
   --color-accent-amber: #fbbf24;
   --color-accent-yellow: #fde68a;
-  --color-accent-purple: #c4b5fd;
+  --color-accent-purple: #a78bfa;
 
   /* Status */
   --color-status-active: #34d399;
-  --color-status-idle: #78716c;
+  --color-status-idle: #566888;
   --color-status-pending: #fbbf24;
   --color-status-running: #2dd4bf;
   --color-status-error: #f87171;
-  --color-status-denied: #78716c;
+  --color-status-denied: #566888;
 }
 
 /* ── Base Styles ── */
@@ -72,7 +79,7 @@ body,
 }
 
 ::-webkit-scrollbar-thumb {
-  background-color: var(--color-bg-tertiary);
+  background-color: var(--color-border-primary);
   border-radius: 3px;
 }
 

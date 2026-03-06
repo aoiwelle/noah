@@ -20,7 +20,7 @@ export function SessionBar({ session }: SessionBarProps) {
 
   return (
     <header
-      className="flex items-center justify-between px-4 py-2.5 bg-bg-secondary/90 border-b border-border-primary/60 select-none"
+      className="flex items-center justify-between px-4 py-2.5 bg-bg-secondary border-b border-border-primary select-none"
       data-tauri-drag-region=""
     >
       {/* Left: Brand + New conversation */}
