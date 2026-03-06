@@ -65,180 +65,111 @@ function ToolCallItem({ toolCall }: { toolCall: ToolCall }) {
 
 // ── Actions Block (inline per-message) ──
 
-const ACTION_LABELS: Record<string, string> = {
-  shell_run: "Ran a command",
-  mac_network_info: "Checked network",
-  mac_ping: "Tested connectivity",
-  mac_dns_check: "Checked DNS",
-  mac_http_check: "Tested web access",
+// ── Action classification ────────────────────────────────────────────────────
+// Dedicated tools: classify as diagnostic (read-only) or change (mutating).
+// Only changes are shown to the user; diagnostics are counted but hidden.
+
+const CHANGE_TOOLS: Record<string, string> = {
   mac_flush_dns: "Flushed DNS",
-  mac_system_info: "Checked system info",
-  mac_system_summary: "Ran diagnostics",
-  mac_process_list: "Checked processes",
-  mac_disk_usage: "Checked disk space",
-  mac_printer_list: "Checked printers",
-  mac_print_queue: "Checked print queue",
-  mac_app_list: "Listed apps",
-  mac_app_logs: "Read app logs",
-  mac_read_file: "Read a file",
-  mac_read_log: "Read logs",
   mac_kill_process: "Stopped a process",
   mac_clear_caches: "Cleared caches",
   mac_clear_app_cache: "Cleared app cache",
   mac_restart_cups: "Restarted printing",
   mac_cancel_print_jobs: "Cancelled print jobs",
   mac_move_file: "Moved a file",
-  win_network_info: "Checked network",
-  win_ping: "Tested connectivity",
-  win_dns_check: "Checked DNS",
-  win_http_check: "Tested web access",
   win_flush_dns: "Flushed DNS",
-  win_system_info: "Checked system info",
-  win_system_summary: "Ran diagnostics",
-  win_process_list: "Checked processes",
-  win_disk_usage: "Checked disk space",
-  win_printer_list: "Checked printers",
-  win_print_queue: "Checked print queue",
-  win_app_list: "Listed apps",
-  win_app_logs: "Read app logs",
-  win_app_data_ls: "Browsed app data",
-  win_read_file: "Read a file",
-  win_read_log: "Read logs",
   win_kill_process: "Stopped a process",
   win_clear_caches: "Cleared caches",
   win_clear_app_cache: "Cleared app cache",
   win_restart_spooler: "Restarted printing",
   win_cancel_print_jobs: "Cancelled print jobs",
   win_move_file: "Moved a file",
-  win_startup_programs: "Checked startup programs",
-  win_service_list: "Listed services",
   win_restart_service: "Restarted a service",
   write_knowledge: "Saved a note",
-  search_knowledge: "Searched notes",
-  read_knowledge: "Read a note",
-  list_knowledge: "Listed notes",
 };
 
-// Word-boundary (\b) patterns match regardless of cd/sudo/sleep/pipe prefixes.
-// Keep labels SHORT — 2-4 words. Order matters (specific before general).
-const SHELL_PATTERNS: [RegExp, string][] = [
-  [/uptime/, "Checked uptime"],
-  [/\b(top|ps)\b/, "Checked processes"],
-  [/\b(sw_vers|winver)\b/, "Checked OS version"],
-  [/\bsystem_profiler\b/, "Checked system info"],
-  [/\b(sysctl|systeminfo)\b/, "Checked system info"],
-  [/\b(pmset|powercfg)\b/, "Checked power settings"],
-  [/\bdf\b/, "Checked disk space"],
-  [/\bdu\s/, "Checked folder size"],
-  [/\bdiskutil\s+unmount\b/, "Ejected a disk"],
-  [/\bdiskutil\b/, "Checked disk info"],
+// Shell command patterns that represent actual changes (not diagnostics).
+// [pattern, label] — order matters (specific before general).
+const SHELL_CHANGE_PATTERNS: [RegExp, string][] = [
   [/\bfind\b.*-exec\s+(mv|cp)\b/, "Organized files"],
-  [/\bfind\b/, "Searched for files"],
-  [/\b(cat|less|more|head|tail)\s/, "Read a file"],
-  [/\bls\b/, "Listed files"],
   [/\bmkdir\b/, "Created folders"],
   [/\b(cp|rsync)\b/, "Copied files"],
   [/\bmv\b/, "Moved files"],
   [/\b(chmod|chown|icacls)\b/, "Changed permissions"],
   [/\brm\s/, "Cleaned up files"],
   [/\bnetworksetup\s+-setairportnetwork\b/, "Connected to WiFi"],
-  [/\bnetworksetup\s+-scan\b/, "Scanned for WiFi"],
-  [/\bnetworksetup\b/, "Checked network"],
-  [/\b(ifconfig|ipconfig|scutil)\b/, "Checked network"],
-  [/\bwdutil\b/, "Checked WiFi"],
-  [/\b(ping|arping)\s/, "Tested connectivity"],
-  [/\b(nslookup|dig|host)\s/, "Looked up DNS"],
-  [/\btraceroute\s/, "Traced network route"],
-  [/\b(curl|wget)\s/, "Fetched from web"],
-  [/\blsof\b/, "Checked connections"],
-  [/\b(netstat|ss)\b/, "Checked connections"],
-  [/\bnetsh\b/, "Checked network"],
-  [/\btailscale\b/, "Checked VPN"],
-  [/\blpr\s/, "Printed a file"],
-  [/\b(lpstat|lpoptions|lpq)\b/, "Checked printer"],
   [/\b(killall|taskkill)\s+(\S+)/, "Stopped $2"],
   [/\bpkill\b/, "Stopped a process"],
-  [/\bopen\s+.*systempreferences/, "Opened Settings"],
   [/\bopen\s+-a\s+(\S+)/, "Opened $1"],
-  [/\b(open|start)\s/, "Opened a file"],
-  [/\b(launchctl|systemctl)\b/, "Managed services"],
+  [/\b(launchctl|systemctl)\b.*\b(start|stop|restart)\b/, "Managed services"],
   [/\bdefaults\s+write\b/, "Changed preferences"],
-  [/\bdefaults\s+read\b/, "Checked preferences"],
   [/\b(brew|apt|yum|choco|winget|scoop)\s+install\b/, "Installed software"],
   [/\b(brew|apt|yum|choco|winget|scoop)\s+upgrade\b/, "Updated software"],
-  [/\b(brew|apt|yum|choco|winget|scoop)\s+(list|info)\b/, "Checked software"],
   [/\b(npm|yarn|pnpm)\s+cache\s+clean\b/, "Cleared caches"],
-  [/\bsoftwareupdate\b/, "Checked for updates"],
-  [/\b(spctl|csrutil)\b/, "Checked security"],
-  [/\b(mdutil|mdfind)\b/, "Checked Spotlight"],
-  [/\btmutil\b/, "Checked Time Machine"],
-  [/\bdscacheutil\b/, "Cleared caches"],
-  [/\b(log\s+show|journalctl)\b/, "Read system logs"],
-  [/\b(wmic|Get-WmiObject|Get-CimInstance)/, "Checked system info"],
+  [/\bdscacheutil\s+-flushcache\b/, "Cleared caches"],
+  [/\bsoftwareupdate\s+-(i|d)\b/, "Installed updates"],
+  [/\blpr\s/, "Printed a file"],
+  [/\bopen\s+.*systempreferences/, "Opened Settings"],
+  [/\b(open|start)\s/, "Opened a file"],
   [/\b(sfc|DISM|chkdsk)\b/i, "Ran repair tool"],
 ];
 
-/** Extract a human-friendly label from a shell command string. */
-function humanizeShellCommand(cmd: string): string {
-  const trimmed = cmd.trim();
-  for (const [pattern, label] of SHELL_PATTERNS) {
-    const m = trimmed.match(pattern);
+/** For a shell_run action, return its change label or null if diagnostic. */
+function shellChangeLabel(description: string): string | null {
+  if (!description.startsWith("Executed shell command:")) return null;
+  const cmd = description.slice("Executed shell command:".length).trim();
+  for (const [pattern, label] of SHELL_CHANGE_PATTERNS) {
+    const m = cmd.match(pattern);
     if (m) return label.replace(/\$(\d+)/g, (_, i) => m[+i] || "");
   }
-  return "";
+  return null; // diagnostic
 }
 
-/** Turn a raw tool description into something a non-technical user understands. */
-function humanizeDescription(_toolName: string, description: string): string {
-  // "Executed shell command: <cmd>" → parse the command for a friendly label
-  if (description.startsWith("Executed shell command:")) {
-    const cmd = description.slice("Executed shell command:".length).trim();
-    return humanizeShellCommand(cmd);
-  }
-  if (/^Killed process \d+/.test(description)) return "";
-  if (description.startsWith("Cleared contents of")) return "";
-  if (description.startsWith("Restarted")) return "";
-  // "Set DNS to ..." → keep as-is, it's already clear
-  return description;
+/** Classify an action and return its label, or null if diagnostic. */
+function changeLabel(c: {
+  tool_name: string;
+  description: string;
+}): string | null {
+  if (c.tool_name === "shell_run") return shellChangeLabel(c.description);
+  return CHANGE_TOOLS[c.tool_name] || null;
 }
 
-/** Pick the single best short label for an action. */
-function actionLabel(c: { tool_name: string; description: string }): string {
-  // For shell_run, parse the command for a friendly label
-  if (c.tool_name === "shell_run") {
-    const humanized = humanizeDescription(c.tool_name, c.description);
-    return humanized || "Ran a command";
-  }
-  // For dedicated tools, use the curated short label from ACTION_LABELS
-  return ACTION_LABELS[c.tool_name] || c.tool_name.replace(/_/g, " ");
-}
-
-/** Collapse ALL actions with identical labels (global, not just consecutive). */
-function collapseActions(
+/** Deduplicate change labels, preserving first-seen order. */
+function dedupeChanges(
   actions: { tool_name: string; description: string }[],
-): { label: string; count: number; tooltip: string }[] {
-  const map = new Map<string, { count: number; tooltip: string }>();
-  const order: string[] = [];
+): { changes: string[]; diagnosticCount: number } {
+  const seen = new Set<string>();
+  const changes: string[] = [];
+  let diagnosticCount = 0;
   for (const a of actions) {
-    const lbl = actionLabel(a);
-    const existing = map.get(lbl);
-    if (existing) {
-      existing.count++;
-      existing.tooltip += `\n${a.description}`;
-    } else {
-      map.set(lbl, { count: 1, tooltip: a.description });
-      order.push(lbl);
+    const lbl = changeLabel(a);
+    if (lbl === null) {
+      diagnosticCount++;
+    } else if (!seen.has(lbl)) {
+      seen.add(lbl);
+      changes.push(lbl);
     }
   }
-  return order.map((lbl) => ({ label: lbl, ...map.get(lbl)! }));
+  return { changes, diagnosticCount };
 }
 
 function ChangesBlock({ changeIds }: { changeIds: string[] }) {
   const [expanded, setExpanded] = useState(false);
-  const changes = useSessionStore((s) => s.changes);
-  const matched = changes.filter((c) => changeIds.includes(c.id));
+  const allChanges = useSessionStore((s) => s.changes);
+  const matched = allChanges.filter((c) => changeIds.includes(c.id));
 
   if (matched.length === 0) return null;
+
+  const { changes, diagnosticCount } = dedupeChanges(matched);
+
+  // If everything was diagnostic, show a simple one-liner
+  if (changes.length === 0) {
+    return (
+      <div className="mt-2 rounded-md border border-border-primary bg-bg-primary/50 px-3 py-1.5 text-xs text-text-muted">
+        Ran {diagnosticCount} diagnostic check{diagnosticCount !== 1 ? "s" : ""}
+      </div>
+    );
+  }
 
   return (
     <div className="mt-2 rounded-md border border-border-primary bg-bg-primary/50 overflow-hidden">
@@ -250,7 +181,7 @@ function ChangesBlock({ changeIds }: { changeIds: string[] }) {
           <path d="M8.5 1.5L12.5 5.5L5 13H1V9L8.5 1.5Z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
         </svg>
         <span className="text-accent-purple font-medium">
-          {matched.length} action{matched.length !== 1 ? "s" : ""} taken
+          {changes.length} change{changes.length !== 1 ? "s" : ""} made
         </span>
         <span className="text-text-muted ml-auto">
           {expanded ? "\u25B4" : "\u25BE"}
@@ -258,13 +189,16 @@ function ChangesBlock({ changeIds }: { changeIds: string[] }) {
       </button>
       {expanded && (
         <div className="px-3 py-2 border-t border-border-primary text-xs space-y-1.5">
-          {collapseActions(matched).map(({ label, count, tooltip }, i) => (
-            <div key={i} className="flex items-start gap-2" title={tooltip}>
-              <span className="text-text-secondary leading-snug">
-                {label}{count > 1 ? ` \u00d7${count}` : ""}
-              </span>
+          {changes.map((label, i) => (
+            <div key={i} className="text-text-secondary leading-snug">
+              {label}
             </div>
           ))}
+          {diagnosticCount > 0 && (
+            <div className="text-text-muted pt-0.5">
+              + {diagnosticCount} diagnostic check{diagnosticCount !== 1 ? "s" : ""}
+            </div>
+          )}
         </div>
       )}
     </div>

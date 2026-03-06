@@ -113,7 +113,7 @@ describe("SessionBar", () => {
 // ── ChangesBlock (tested through ChatPanel) ──────────────────────────────────
 
 describe("ChangesBlock", () => {
-  it("renders collapsed with action count when message has changeIds", async () => {
+  it("shows change count for mutating actions", async () => {
     useSessionStore.setState({ changes: [CHANGE] });
     useChatStore.setState({
       messages: [
@@ -127,10 +127,10 @@ describe("ChangesBlock", () => {
       ],
     });
     render(<ChatPanel />);
-    await screen.findByText("1 action taken");
+    await screen.findByText("1 change made");
   });
 
-  it("expands to show human-readable action when clicked", async () => {
+  it("expands to show the change label", async () => {
     useSessionStore.setState({ changes: [CHANGE] });
     useChatStore.setState({
       messages: [
@@ -144,18 +144,47 @@ describe("ChangesBlock", () => {
       ],
     });
     render(<ChatPanel />);
-    await userEvent.click(await screen.findByText("1 action taken"));
+    await userEvent.click(await screen.findByText("1 change made"));
     screen.getByText("Flushed DNS");
   });
 
-  it("shows plural label for multiple actions", async () => {
-    const change2: ChangeEntry = {
+  it("shows diagnostic-only message when all actions are read-only", async () => {
+    const diagChange: ChangeEntry = {
       ...CHANGE,
-      id: "c2",
+      id: "c-diag",
       tool_name: "mac_ping",
       description: "Pinged host",
     };
-    useSessionStore.setState({ changes: [CHANGE, change2] });
+    useSessionStore.setState({ changes: [diagChange] });
+    useChatStore.setState({
+      messages: [
+        {
+          id: "msg1",
+          role: "assistant",
+          content: "Looks good.",
+          timestamp: Date.now(),
+          changeIds: ["c-diag"],
+        },
+      ],
+    });
+    render(<ChatPanel />);
+    await screen.findByText(/diagnostic check/);
+  });
+
+  it("shows mutating shell commands as changes, diagnostics as footnote", async () => {
+    const diag: ChangeEntry = {
+      ...CHANGE,
+      id: "c1",
+      tool_name: "shell_run",
+      description: "Executed shell command: ps aux | grep discord",
+    };
+    const change: ChangeEntry = {
+      ...CHANGE,
+      id: "c2",
+      tool_name: "shell_run",
+      description: "Executed shell command: pkill -f Discord",
+    };
+    useSessionStore.setState({ changes: [diag, change] });
     useChatStore.setState({
       messages: [
         {
@@ -168,7 +197,9 @@ describe("ChangesBlock", () => {
       ],
     });
     render(<ChatPanel />);
-    await screen.findByText("2 actions taken");
+    await userEvent.click(await screen.findByText("1 change made"));
+    screen.getByText("Stopped a process");
+    screen.getByText(/1 diagnostic check/);
   });
 
   it("does not render when changeIds do not match any store changes", async () => {
@@ -187,80 +218,6 @@ describe("ChangesBlock", () => {
     render(<ChatPanel />);
     await screen.findByText("Nothing done.");
     expect(screen.queryByText(/change made/)).toBeNull();
-  });
-
-  it("humanizes shell_run commands instead of showing 'Ran a command'", async () => {
-    const shellChange: ChangeEntry = {
-      ...CHANGE,
-      id: "c-shell",
-      tool_name: "shell_run",
-      description: "Executed shell command: uptime",
-    };
-    useSessionStore.setState({ changes: [shellChange] });
-    useChatStore.setState({
-      messages: [
-        {
-          id: "msg1",
-          role: "assistant",
-          content: "Checked.",
-          timestamp: Date.now(),
-          changeIds: ["c-shell"],
-        },
-      ],
-    });
-    render(<ChatPanel />);
-    await userEvent.click(await screen.findByText("1 action taken"));
-    screen.getByText(/Checked uptime/);
-  });
-
-  it("shows 'Ran a command' for unrecognized shell commands", async () => {
-    const shellChange: ChangeEntry = {
-      ...CHANGE,
-      id: "c-shell",
-      tool_name: "shell_run",
-      description: "Executed shell command: some_obscure_tool --flag",
-    };
-    useSessionStore.setState({ changes: [shellChange] });
-    useChatStore.setState({
-      messages: [
-        {
-          id: "msg1",
-          role: "assistant",
-          content: "Done.",
-          timestamp: Date.now(),
-          changeIds: ["c-shell"],
-        },
-      ],
-    });
-    render(<ChatPanel />);
-    await userEvent.click(await screen.findByText("1 action taken"));
-    screen.getByText("Ran a command");
-  });
-
-  it("collapses consecutive identical actions with ×N", async () => {
-    const mkChange = (id: string): ChangeEntry => ({
-      ...CHANGE,
-      id,
-      tool_name: "shell_run",
-      description: "Executed shell command: find ~/Library -name '*discord*' -type d",
-    });
-    useSessionStore.setState({
-      changes: [mkChange("c1"), mkChange("c2"), mkChange("c3")],
-    });
-    useChatStore.setState({
-      messages: [
-        {
-          id: "msg1",
-          role: "assistant",
-          content: "Done.",
-          timestamp: Date.now(),
-          changeIds: ["c1", "c2", "c3"],
-        },
-      ],
-    });
-    render(<ChatPanel />);
-    await userEvent.click(await screen.findByText("3 actions taken"));
-    screen.getByText(/Searched for files.*×3/);
   });
 
   it("does not render when message has no changeIds", async () => {
