@@ -57,10 +57,18 @@ export function useSession(): UseSessionReturn {
     await createSession();
   }, [sessionId, endSessionState, createSession]);
 
+  const setChanges = useSessionStore((s) => s.setChanges);
+
   const switchToProblem = useCallback(
     async (targetId: string) => {
       try {
-        const records = await commands.getSessionMessages(targetId);
+        const [records, changes] = await Promise.all([
+          commands.getSessionMessages(targetId),
+          commands.getChanges(targetId),
+        ]);
+
+        setChanges(changes);
+
         if (records.length === 0) {
           setMessages([
             {
@@ -72,14 +80,30 @@ export function useSession(): UseSessionReturn {
             },
           ]);
         } else {
+          // Attach all change IDs to the last assistant message so the
+          // inline ChangesBlock renders when viewing past sessions.
+          // (The per-message linkage isn't persisted in the DB.)
+          const allChangeIds = changes.map((c) => c.id);
+          let lastAssistantIdx = -1;
+          for (let i = records.length - 1; i >= 0; i--) {
+            if (records[i].role === "assistant") {
+              lastAssistantIdx = i;
+              break;
+            }
+          }
+
           setMessages(
-            records.map((r) => ({
+            records.map((r, i) => ({
               id: r.id,
               role: r.role as "user" | "assistant" | "system",
               content: r.content,
               timestamp: new Date(r.timestamp).getTime(),
               actionTaken: r.action_taken || undefined,
               actionConfirmation: r.action_confirmation || undefined,
+              changeIds:
+                i === lastAssistantIdx && allChangeIds.length > 0
+                  ? allChangeIds
+                  : undefined,
             })),
           );
         }
@@ -88,7 +112,7 @@ export function useSession(): UseSessionReturn {
         console.error("Failed to switch session:", err);
       }
     },
-    [setSession, setMessages],
+    [setSession, setMessages, setChanges],
   );
 
   // Auto-create session on mount (module-level guard prevents duplicates
