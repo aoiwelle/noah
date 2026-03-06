@@ -127,7 +127,7 @@ describe("ChangesBlock", () => {
       ],
     });
     render(<ChatPanel />);
-    await screen.findByText("1 change made");
+    await screen.findByText("1 action taken");
   });
 
   it("expands to show the change label", async () => {
@@ -144,7 +144,7 @@ describe("ChangesBlock", () => {
       ],
     });
     render(<ChatPanel />);
-    await userEvent.click(await screen.findByText("1 change made"));
+    await userEvent.click(await screen.findByText("1 action taken"));
     screen.getByText("Flushed DNS");
   });
 
@@ -197,7 +197,7 @@ describe("ChangesBlock", () => {
       ],
     });
     render(<ChatPanel />);
-    await userEvent.click(await screen.findByText("1 change made"));
+    await userEvent.click(await screen.findByText("1 action taken"));
     screen.getByText("Stopped a process");
     screen.getByText(/1 diagnostic check/);
   });
@@ -217,7 +217,7 @@ describe("ChangesBlock", () => {
     });
     render(<ChatPanel />);
     await screen.findByText("Nothing done.");
-    expect(screen.queryByText(/change made/)).toBeNull();
+    expect(screen.queryByText(/action taken/)).toBeNull();
   });
 
   it("does not render when message has no changeIds", async () => {
@@ -233,7 +233,7 @@ describe("ChangesBlock", () => {
     });
     render(<ChatPanel />);
     await screen.findByText("Just checked your system.");
-    expect(screen.queryByText(/change made/)).toBeNull();
+    expect(screen.queryByText(/action taken/)).toBeNull();
   });
 });
 
