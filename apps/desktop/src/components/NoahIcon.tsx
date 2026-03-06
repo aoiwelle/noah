@@ -1,4 +1,4 @@
-import noahIcon from "../assets/noah-logo.svg";
+import noahIcon from "../assets/noah-icon.png";
 
 interface NoahIconProps {
   className?: string;
