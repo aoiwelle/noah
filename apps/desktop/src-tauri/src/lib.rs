@@ -155,10 +155,9 @@ pub fn run() {
             router.register(Box::new(knowledge::ReadKnowledgeTool::new(knowledge_dir.clone())));
             router.register(Box::new(knowledge::ListKnowledgeTool::new(knowledge_dir.clone())));
 
-            // Bootstrap playbooks and register activate_playbook tool.
-            let playbook_registry = playbooks::PlaybookRegistry::init(&app_dir)
+            // Seed built-in playbooks into knowledge/playbooks/ and register activate_playbook.
+            let playbook_registry = playbooks::PlaybookRegistry::init(&knowledge_dir)
                 .expect("Failed to initialise playbooks");
-            let playbooks_section = playbook_registry.prompt_section();
             router.register(Box::new(playbooks::ActivatePlaybookTool::new(playbook_registry)));
 
             // Load auth: proxy config, API key file, or env var.
@@ -175,7 +174,7 @@ pub fn run() {
 
             // Build the orchestrator.
             let orchestrator =
-                Orchestrator::new(llm, router, os_context, pending_approvals.clone(), db_arc.clone(), knowledge_dir.clone(), playbooks_section);
+                Orchestrator::new(llm, router, os_context, pending_approvals.clone(), db_arc.clone(), knowledge_dir.clone());
             let cancelled = orchestrator.cancelled_flag();
 
             // Manage shared state.

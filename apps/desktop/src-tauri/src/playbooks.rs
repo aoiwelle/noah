@@ -129,15 +129,15 @@ fn current_platform() -> &'static str {
 }
 
 impl PlaybookRegistry {
-    /// Bootstrap playbooks directory and load metadata from all `.md` files.
+    /// Bootstrap the `playbooks/` subdirectory inside `knowledge_dir` and load metadata.
     /// Only playbooks matching the current platform (or `platform: all`) are loaded.
-    pub fn init(app_dir: &Path) -> Result<Self> {
-        Self::init_for_platform(app_dir, current_platform())
+    pub fn init(knowledge_dir: &Path) -> Result<Self> {
+        Self::init_for_platform(knowledge_dir, current_platform())
     }
 
     /// Bootstrap and load playbooks, filtering to a specific platform + "all".
-    fn init_for_platform(app_dir: &Path, platform: &str) -> Result<Self> {
-        let playbooks_dir = app_dir.join("playbooks");
+    fn init_for_platform(knowledge_dir: &Path, platform: &str) -> Result<Self> {
+        let playbooks_dir = knowledge_dir.join("playbooks");
         std::fs::create_dir_all(&playbooks_dir)?;
 
         // Write built-in playbooks if they don't already exist (preserves user edits).
@@ -174,51 +174,35 @@ impl PlaybookRegistry {
         })
     }
 
-    /// Render the compact playbook listing for the system prompt.
-    pub fn prompt_section(&self) -> String {
-        if self.metas.is_empty() {
-            return String::new();
-        }
-
-        let mut lines = Vec::new();
-        lines.push("## Playbooks".to_string());
-        lines.push("You have expert diagnostic playbooks for complex problems. When a user describes a non-trivial issue that matches a playbook, activate it to get a step-by-step protocol.".to_string());
-        lines.push(String::new());
-        lines.push("Available playbooks:".to_string());
-        for meta in &self.metas {
-            lines.push(format!("- {}: {}", meta.name, meta.description));
-        }
-        lines.push(String::new());
-        lines.push(
-            "Use `activate_playbook` with the playbook name to load the full protocol.".to_string(),
-        );
-
-        lines.join("\n")
-    }
-
-    /// Read the full content of a playbook by name.
+    /// Read the full content of a playbook by name or filename stem.
+    ///
+    /// Matching order:
+    /// 1. YAML frontmatter `name:` field (built-in playbooks).
+    /// 2. File stem (e.g. `"app-doctor"` matches `app-doctor.md`) — for user-written
+    ///    playbooks saved via `write_knowledge` that have no frontmatter.
     fn read_playbook(&self, name: &str) -> Result<String> {
-        // Scan the playbooks directory for a matching file.
         let entries = std::fs::read_dir(&self.playbooks_dir)?;
         for entry in entries.flatten() {
             let path = entry.path();
             if path.extension().is_some_and(|ext| ext == "md") {
                 if let Ok(content) = std::fs::read_to_string(&path) {
+                    // 1. Frontmatter name match.
                     if let Some(meta) = parse_frontmatter(&content) {
                         if meta.name == name {
                             return Ok(content);
                         }
                     }
+                    // 2. Filename stem match (e.g. user-written "app-repair.md").
+                    if path.file_stem().map(|s| s.to_string_lossy() == name).unwrap_or(false) {
+                        return Ok(content);
+                    }
                 }
             }
         }
 
-        // Not found — return an error listing available names.
-        let available: Vec<&str> = self.metas.iter().map(|m| m.name.as_str()).collect();
         anyhow::bail!(
-            "Playbook '{}' not found. Available playbooks: {}",
-            name,
-            available.join(", ")
+            "Playbook '{}' not found. Use `list_knowledge` with category 'playbooks' to see what's available.",
+            name
         )
     }
 }
@@ -438,45 +422,6 @@ mod tests {
         assert!(win_registry.metas.iter().any(|m| m.name == "win-only"));
     }
 
-    // ── System prompt ──────────────────────────────────────────────────
-
-    #[test]
-    fn test_prompt_section_contains_names() {
-        let tmp = tempfile::tempdir().unwrap();
-        let registry = PlaybookRegistry::init_for_platform(tmp.path(), "macos").unwrap();
-        let section = registry.prompt_section();
-
-        assert!(section.contains("network-diagnostics"));
-        assert!(section.contains("outlook-troubleshooting"));
-        assert!(section.contains("activate_playbook"));
-    }
-
-    #[test]
-    fn test_prompt_section_excludes_filtered_playbooks() {
-        let tmp = tempfile::tempdir().unwrap();
-        let playbooks_dir = tmp.path().join("playbooks");
-        std::fs::create_dir_all(&playbooks_dir).unwrap();
-
-        // Add a Windows-only playbook.
-        let win_pb = "---\nname: win-special\ndescription: Win only\nplatform: windows\n---\n# Win";
-        std::fs::write(playbooks_dir.join("win-special.md"), win_pb).unwrap();
-
-        let registry = PlaybookRegistry::init_for_platform(tmp.path(), "macos").unwrap();
-        let section = registry.prompt_section();
-
-        // Must not leak into macOS prompt.
-        assert!(!section.contains("win-special"));
-    }
-
-    #[test]
-    fn test_prompt_section_empty_registry() {
-        let registry = PlaybookRegistry {
-            playbooks_dir: PathBuf::from("/nonexistent"),
-            metas: Vec::new(),
-        };
-        assert_eq!(registry.prompt_section(), "");
-    }
-
     // ── Read / activate ────────────────────────────────────────────────
 
     #[test]
@@ -493,7 +438,22 @@ mod tests {
         let registry = PlaybookRegistry::init_for_platform(tmp.path(), "macos").unwrap();
         let err = registry.read_playbook("nonexistent").unwrap_err();
         assert!(err.to_string().contains("not found"));
-        assert!(err.to_string().contains("network-diagnostics"));
+        assert!(err.to_string().contains("list_knowledge"));
+    }
+
+    #[test]
+    fn test_read_playbook_by_filename_stem() {
+        // User-written playbooks have no frontmatter — should match by filename stem.
+        let tmp = tempfile::tempdir().unwrap();
+        let playbooks_dir = tmp.path().join("playbooks");
+        std::fs::create_dir_all(&playbooks_dir).unwrap();
+
+        let user_playbook = "# Corrupted App Repair\n\nSteps to repair a corrupted macOS app.";
+        std::fs::write(playbooks_dir.join("corrupted-app-repair.md"), user_playbook).unwrap();
+
+        let registry = PlaybookRegistry::init_for_platform(tmp.path(), "macos").unwrap();
+        let content = registry.read_playbook("corrupted-app-repair").unwrap();
+        assert!(content.contains("Corrupted App Repair"));
     }
 
     #[test]

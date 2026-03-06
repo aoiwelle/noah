@@ -2,19 +2,13 @@
 ///
 /// `os_context` is a string describing the current OS/hardware environment,
 /// filled in dynamically at runtime.
-/// `knowledge_toc` is a table-of-contents listing of saved knowledge files (may be empty).
-/// `playbooks_section` is the compact playbook listing (may be empty).
-pub fn system_prompt(os_context: &str, knowledge_toc: &str, playbooks_section: &str) -> String {
+/// `knowledge_toc` is a live table-of-contents listing of all knowledge files, including
+/// the `playbooks` category which contains diagnostic protocols.
+pub fn system_prompt(os_context: &str, knowledge_toc: &str) -> String {
     let knowledge_section = if knowledge_toc.is_empty() {
         String::new()
     } else {
         format!("\n\n{}", knowledge_toc)
-    };
-
-    let playbooks = if playbooks_section.is_empty() {
-        String::new()
-    } else {
-        format!("\n\n{}", playbooks_section)
     };
 
     format!(
@@ -55,7 +49,8 @@ You have a knowledge base of markdown files organized by category. Use these too
 - `read_knowledge` — read the full content of a specific knowledge file.
 - `list_knowledge` — list all knowledge files or a specific category.
 - Use descriptive filenames. Good: "slow-wifi-fixed-dns-change". Bad: "issue-1".
-- Categories: devices, network, software, issues, preferences (or create new ones).
+- Categories: devices, issues, network, playbooks, preferences, software (or create new ones).
+- To save a reusable diagnostic procedure for future sessions, write it to the `playbooks` category.
 - When the user asks what you know, asks about past issues, or asks you to remember something, ALWAYS use knowledge tools — `search_knowledge`, `list_knowledge`, `read_knowledge`, or `write_knowledge`.
 - When a problem seems familiar or has been seen before, use `search_knowledge` to check for past fixes.
 - IMPORTANT: Always call knowledge tools BEFORE your final text response, never in the same turn as your concluding message. Run tools first, then respond with text.
@@ -81,9 +76,9 @@ You have a knowledge base of markdown files organized by category. Use these too
 ## Tool Usage
 - Always run read-only diagnostic tools first to understand the situation before proposing a fix.
 - Use the most specific tool available. Only use shell_run when no dedicated tool exists.
-- NEVER call modifying tools (flush_dns, kill_process, clear_caches, restart_cups, cancel_print_jobs, move_file, shell_run) until the user has confirmed the plan. Always present [SITUATION]/[PLAN]/[ACTION] first and wait.{playbooks}"#,
+- NEVER call modifying tools (flush_dns, kill_process, clear_caches, restart_cups, cancel_print_jobs, move_file, shell_run) until the user has confirmed the plan. Always present [SITUATION]/[PLAN]/[ACTION] first and wait.
+- For non-trivial issues, check whether a diagnostic playbook applies (listed under `playbooks` in the knowledge base) and use `activate_playbook` to load its step-by-step protocol."#,
         os_context = os_context,
         knowledge_section = knowledge_section,
-        playbooks = playbooks
     )
 }

@@ -10,10 +10,11 @@ use itman_tools::{SafetyTier, Tool, ToolResult};
 
 const DEFAULT_CATEGORIES: &[&str] = &[
     "devices",
-    "network",
-    "software",
     "issues",
+    "network",
+    "playbooks",
     "preferences",
+    "software",
 ];
 
 // ── Init ────────────────────────────────────────────────────────────────
@@ -188,7 +189,7 @@ pub fn knowledge_toc(knowledge_dir: &Path) -> Result<String> {
 
     let mut lines = vec![
         "## Knowledge Base".to_string(),
-        "Use `search_knowledge` or `read_knowledge` to access details.".to_string(),
+        "Use `search_knowledge` or `read_knowledge` to access details. Files under `playbooks` are diagnostic protocols — use `activate_playbook` to load them.".to_string(),
         String::new(),
     ];
 
@@ -234,7 +235,7 @@ impl Tool for WriteKnowledgeTool {
             "properties": {
                 "category": {
                     "type": "string",
-                    "description": "Folder name: devices, network, software, issues, preferences, or a new category."
+                    "description": "Folder name: devices, issues, network, playbooks, preferences, software, or a new category name."
                 },
                 "filename": {
                     "type": "string",
