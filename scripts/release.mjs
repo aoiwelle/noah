@@ -228,13 +228,18 @@ async function main() {
     await rm(BUNDLE_DIR, { recursive: true, force: true });
   }
 
-  // macOS code signing + notarization (set env vars or use defaults from keychain profile)
+  // macOS code signing + notarization
+  // Requires env vars: APPLE_SIGNING_IDENTITY, APPLE_ID, APPLE_PASSWORD, APPLE_TEAM_ID
   if (process.platform === "darwin") {
-    if (!process.env.APPLE_SIGNING_IDENTITY) {
-      console.warn("==> APPLE_SIGNING_IDENTITY not set — macOS build will not be signed");
-      console.warn("    Set it to your 'Developer ID Application: ...' identity");
-    } else {
-      process.env.APPLE_NOTARIZATION_CREDENTIALS = process.env.APPLE_NOTARIZATION_CREDENTIALS || "noah-notarize";
+    const hasSigning = !!process.env.APPLE_SIGNING_IDENTITY;
+    const hasNotarization = process.env.APPLE_ID && process.env.APPLE_PASSWORD && process.env.APPLE_TEAM_ID;
+    if (!hasSigning) {
+      console.warn("==> APPLE_SIGNING_IDENTITY not set — build will not be signed");
+    }
+    if (!hasNotarization) {
+      console.warn("==> APPLE_ID/APPLE_PASSWORD/APPLE_TEAM_ID not set — build will not be notarized");
+    }
+    if (hasSigning && hasNotarization) {
       console.log("==> macOS signing + notarization enabled");
     }
   }
