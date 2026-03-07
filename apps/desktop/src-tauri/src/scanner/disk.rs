@@ -9,6 +9,67 @@ use crate::safety::journal;
 
 use super::{ScanProgress, Scanner};
 
+// ── macOS TCC-protected directories ────────────────────────────────
+// Accessing these triggers scary OS permission popups (e.g. "Noah wants
+// to access your Music").  We skip them entirely during disk scans.
+
+/// Directory names (lowercase) under $HOME that are TCC-protected on macOS.
+#[cfg(target_os = "macos")]
+const MACOS_PRIVATE_DIRS: &[&str] = &[
+    "music",
+    "pictures",
+    "photos",
+    "movies",
+    "desktop",
+    "documents",
+];
+
+/// Path components (lowercase) anywhere in a path that are TCC-protected.
+#[cfg(target_os = "macos")]
+const MACOS_PRIVATE_PATHS: &[&str] = &[
+    "/library/mail",
+    "/library/messages",
+    "/library/calendars",
+    "/library/contacts",
+    "/library/safari",
+    "/library/suggestions",
+    "/library/homekit",
+    "photos library.photoslibrary",
+];
+
+/// Returns true if `path` is a macOS TCC-protected directory that would
+/// trigger a permission prompt.
+fn is_macos_private(path: &str, home: &str) -> bool {
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = (path, home);
+        return false;
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        let lower = path.to_lowercase();
+        let home_lower = home.to_lowercase();
+
+        // Check top-level home dirs: ~/Music, ~/Pictures, etc.
+        for dir_name in MACOS_PRIVATE_DIRS {
+            let protected = format!("{}/{}", home_lower, dir_name);
+            if lower == protected || lower.starts_with(&format!("{}/", protected)) {
+                return true;
+            }
+        }
+
+        // Check path components anywhere: ~/Library/Mail, etc.
+        for component in MACOS_PRIVATE_PATHS {
+            if lower.contains(component) {
+                return true;
+            }
+        }
+
+        false
+    }
+}
+
 // ── Category heuristics ──────────────────────────────────────────────
 
 fn categorize_path(path: &str) -> &'static str {
@@ -192,6 +253,12 @@ impl Scanner for DiskScanner {
 
             let children = Self::du_children(&home)?;
 
+            // Filter out macOS TCC-protected directories.
+            let children: Vec<_> = children
+                .into_iter()
+                .filter(|(path, _)| !is_macos_private(path, &home))
+                .collect();
+
             // Store top-level results immediately.
             let results: Vec<_> = children
                 .iter()
@@ -277,9 +344,10 @@ impl Scanner for DiskScanner {
                     }
 
                     // Queue sub-children >1GB for even deeper scan.
+                    let home = Self::home_dir();
                     let threshold_kb = 1_048_576;
                     for (path, size) in &children {
-                        if *size > threshold_kb {
+                        if *size > threshold_kb && !is_macos_private(path, &home) {
                             state.queue.push(path.clone());
                         }
                     }

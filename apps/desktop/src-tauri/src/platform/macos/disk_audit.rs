@@ -172,6 +172,45 @@ fn format_size(kb: u64) -> String {
     }
 }
 
+/// macOS TCC-protected directory names under $HOME (lowercase).
+/// Accessing these triggers OS permission popups.
+const MACOS_PRIVATE_DIRS: &[&str] = &[
+    "music", "pictures", "photos", "movies", "desktop", "documents",
+];
+
+/// Path components (lowercase) that are TCC-protected on macOS.
+const MACOS_PRIVATE_PATHS: &[&str] = &[
+    "/library/mail",
+    "/library/messages",
+    "/library/calendars",
+    "/library/contacts",
+    "/library/safari",
+    "/library/suggestions",
+    "/library/homekit",
+    "photos library.photoslibrary",
+];
+
+/// Returns true if `path` is a macOS TCC-protected directory.
+fn is_macos_private(path: &str) -> bool {
+    let lower = path.to_lowercase();
+    let home = std::env::var("HOME").unwrap_or_default().to_lowercase();
+
+    for dir_name in MACOS_PRIVATE_DIRS {
+        let protected = format!("{}/{}", home, dir_name);
+        if lower == protected || lower.starts_with(&format!("{}/", protected)) {
+            return true;
+        }
+    }
+
+    for component in MACOS_PRIVATE_PATHS {
+        if lower.contains(component) {
+            return true;
+        }
+    }
+
+    false
+}
+
 /// Expand ~ to the user's home directory.
 fn expand_tilde(path: &str) -> String {
     if let Some(rest) = path.strip_prefix("~/") {
@@ -230,6 +269,14 @@ impl Tool for DiskAudit {
         // If target is specified but no cache, run du on that specific directory.
         if let Some(target_dir) = target {
             let expanded = expand_tilde(target_dir);
+
+            // Refuse to scan TCC-protected directories.
+            if is_macos_private(&expanded) {
+                return Ok(ToolResult::read_only(
+                    format!("Skipped '{}': this is a macOS-protected directory. Scanning it would trigger a system permission prompt.", target_dir),
+                    json!({"skipped": true, "reason": "macos_privacy"}),
+                ));
+            }
             let output = Command::new("nice")
                 .args(["-n", "19", "du", "-d1", "-k", &expanded])
                 .output()?;
@@ -244,7 +291,7 @@ impl Tool for DiskAudit {
                     let size_str = parts[0].trim();
                     let path = parts[1].trim().to_string();
                     if let Ok(size_kb) = size_str.parse::<u64>() {
-                        if path != expanded && size_kb > min_kb {
+                        if path != expanded && size_kb > min_kb && !is_macos_private(&path) {
                             let label = path.rsplit('/').next().unwrap_or(&path).to_string();
                             results.push((label, path, size_kb));
                         }
@@ -261,6 +308,9 @@ impl Tool for DiskAudit {
 
         for (path_template, label) in SCAN_TARGETS {
             let path = expand_tilde(path_template);
+            if is_macos_private(&path) {
+                continue;
+            }
             if let Some(size_kb) = dir_size_kb(&path) {
                 if size_kb > 0 {
                     results.push((label.to_string(), path, size_kb));
