@@ -16,6 +16,7 @@
   --color-bg-tertiary: #243049;
   --color-bg-input: #1a2440;
   --color-bg-user-bubble: #275e56;
+  --color-text-user-bubble: #ffffff;
   --color-bg-assistant-bubble: #182036;
   --color-bg-system-bubble: #141c30;
   --color-bg-overlay: rgba(8, 12, 24, 0.6);
@@ -60,7 +61,8 @@
     --color-bg-secondary: #ffffff;
     --color-bg-tertiary: #e8ecf4;
     --color-bg-input: #ffffff;
-    --color-bg-user-bubble: #4a9e94;
+    --color-bg-user-bubble: #d5eeeb;
+    --color-text-user-bubble: #1a3a35;
     --color-bg-assistant-bubble: #ffffff;
     --color-bg-system-bubble: #e8ecf4;
     --color-bg-overlay: rgba(15, 23, 41, 0.3);

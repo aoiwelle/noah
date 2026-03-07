@@ -407,7 +407,7 @@ function InfoCard({
 function ConfirmationPill({ timestamp }: { timestamp: number }) {
   return (
     <div className="group flex flex-col items-end animate-fade-in">
-      <div className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-bg-user-bubble/15 text-bg-user-bubble text-sm font-medium">
+      <div className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-bg-user-bubble text-text-user-bubble text-sm font-medium">
         <span>{"\u2713"}</span>
         <span>Go ahead</span>
       </div>
@@ -427,7 +427,7 @@ function MessageBubble({ message }: { message: Message }) {
     return (
       <div className="group flex justify-end animate-fade-in">
         <div className="max-w-[75%]">
-          <div className="rounded-2xl rounded-br-sm bg-bg-user-bubble text-white px-4 py-2.5">
+          <div className="rounded-2xl rounded-br-sm bg-bg-user-bubble text-text-user-bubble px-4 py-2.5">
             <div className="text-base leading-relaxed whitespace-pre-wrap break-words">
               {message.content}
             </div>
