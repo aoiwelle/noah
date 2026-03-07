@@ -21,7 +21,7 @@ export function MainTitleBar() {
       <button
         onClick={toggleSidebar}
         title={sidebarOpen ? "Hide sidebar" : "Show sidebar"}
-        className="flex items-center justify-center w-7 h-7 rounded-md text-text-muted hover:text-text-primary hover:bg-bg-tertiary/50 transition-colors cursor-pointer"
+        className="flex items-center justify-center w-7 h-7 -mt-1 rounded-md text-text-muted hover:text-text-primary hover:bg-bg-tertiary/50 transition-colors cursor-pointer"
       >
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
           <rect x="1.5" y="2.5" width="13" height="11" rx="1.5" stroke="currentColor" strokeWidth="1.2" />
