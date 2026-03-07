@@ -18,7 +18,6 @@
         "minWidth": 600,
         "minHeight": 500,
         "backgroundColor": "#0f172a",
-        "zoomHotkeysEnabled": true,
         "titleBarStyle": "Overlay",
         "hiddenTitle": true
       }
