@@ -784,7 +784,7 @@ export function ChatPanel() {
 
   // Shared floating input card
   const inputCard = (
-    <div className="max-w-3xl w-full mx-auto">
+    <div className="max-w-4xl w-full mx-auto">
       <div className="flex items-end gap-2 bg-bg-secondary rounded-2xl border border-border-primary focus-within:border-accent-blue/40 transition-colors shadow-sm">
         <textarea
           ref={textareaRef}
