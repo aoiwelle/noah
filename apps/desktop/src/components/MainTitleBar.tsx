@@ -1,40 +1,55 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useSessionStore } from "../stores/sessionStore";
 
 const isMac = navigator.platform.startsWith("Mac");
 
-// macOS traffic lights are at a fixed native position (~76px from left).
-// When the webview zooms, CSS pixels scale but traffic lights don't.
-// We track the zoom level and compute padding inversely so it stays aligned.
-const TRAFFIC_LIGHT_PX = 76;
-const ZOOM_STEP = 0.2;
+// Traffic lights end at ~76 macOS points from the left edge.
+// Points = CSS pixels at zoom 1.0. At other zoom levels we need to compensate.
+const TRAFFIC_LIGHT_PT = 76;
 
-function useZoomCompensatedPadding() {
-  const [padding, setPadding] = useState(TRAFFIC_LIGHT_PX);
+/**
+ * Measure the actual webview zoom by comparing physical window size
+ * (from Tauri, fixed regardless of zoom) to CSS viewport width
+ * (shrinks when zooming in). Returns compensated padding in CSS px.
+ */
+function useTrafficLightPadding() {
+  const [padding, setPadding] = useState(TRAFFIC_LIGHT_PT);
+
+  const measure = useCallback(async () => {
+    if (!isMac) return;
+    try {
+      const { width: physicalWidth } = await getCurrentWindow().innerSize();
+      const cssWidth = window.innerWidth;
+      const dpr = window.devicePixelRatio;
+      const zoom = physicalWidth / (cssWidth * dpr);
+      setPadding(TRAFFIC_LIGHT_PT / zoom);
+    } catch {
+      // Tauri API unavailable (e.g. tests), keep default
+    }
+  }, []);
 
   useEffect(() => {
     if (!isMac) return;
 
-    let zoom = 1;
-    const update = () => setPadding(TRAFFIC_LIGHT_PX / zoom);
+    measure();
 
-    const handler = (e: KeyboardEvent) => {
-      if (!(e.metaKey || e.ctrlKey)) return;
-      if (e.key === "=" || e.key === "+") {
-        zoom = Math.min(zoom + ZOOM_STEP, 5);
-        update();
-      } else if (e.key === "-") {
-        zoom = Math.max(zoom - ZOOM_STEP, 0.2);
-        update();
-      } else if (e.key === "0") {
-        zoom = 1;
-        update();
+    // Re-measure when viewport changes (zoom changes innerWidth)
+    window.addEventListener("resize", measure);
+
+    // Also catch zoom hotkeys — small delay for zoom to take effect
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && ["=", "+", "-", "0"].includes(e.key)) {
+        setTimeout(measure, 100);
       }
     };
+    window.addEventListener("keydown", onKey);
 
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, []);
+    return () => {
+      window.removeEventListener("resize", measure);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [measure]);
 
   return isMac ? padding : 12;
 }
@@ -44,7 +59,7 @@ export function MainTitleBar() {
   const toggleSidebar = useSessionStore((s) => s.toggleSidebar);
   const toggleSettings = useSessionStore((s) => s.toggleSettings);
   const settingsOpen = useSessionStore((s) => s.settingsOpen);
-  const paddingLeft = useZoomCompensatedPadding();
+  const paddingLeft = useTrafficLightPadding();
 
   return (
     <div
@@ -52,7 +67,7 @@ export function MainTitleBar() {
       style={{ paddingLeft }}
       data-tauri-drag-region=""
     >
-      {/* Left: Sidebar toggle (always visible, next to traffic lights on Mac) */}
+      {/* Left: Sidebar toggle (next to traffic lights on Mac) */}
       <button
         onClick={toggleSidebar}
         title={sidebarOpen ? "Hide sidebar" : "Show sidebar"}
