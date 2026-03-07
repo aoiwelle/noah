@@ -165,17 +165,17 @@ function ChangesBlock({ changeIds }: { changeIds: string[] }) {
   // If everything was diagnostic, show a simple one-liner
   if (changes.length === 0) {
     return (
-      <div className="mt-2 rounded-md border border-border-primary bg-bg-primary/50 px-3 py-1.5 text-xs text-text-muted">
+      <div className="mt-2 rounded-xl border border-border-primary/50 bg-bg-primary/50 px-4 py-2 text-sm text-text-muted">
         Ran {diagnosticCount} diagnostic check{diagnosticCount !== 1 ? "s" : ""}
       </div>
     );
   }
 
   return (
-    <div className="mt-2 rounded-md border border-border-primary bg-bg-primary/50 overflow-hidden">
+    <div className="mt-2 rounded-xl border border-border-primary/50 bg-bg-primary/50 overflow-hidden">
       <button
         onClick={() => setExpanded(!expanded)}
-        className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-left cursor-pointer hover:bg-bg-tertiary/30 transition-colors"
+        className="flex items-center gap-2 w-full px-4 py-2 text-sm text-left cursor-pointer hover:bg-bg-tertiary/30 transition-colors"
       >
         <svg width="12" height="12" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
           <path d="M8.5 1.5L12.5 5.5L5 13H1V9L8.5 1.5Z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
@@ -188,7 +188,7 @@ function ChangesBlock({ changeIds }: { changeIds: string[] }) {
         </span>
       </button>
       {expanded && (
-        <div className="px-3 py-2 border-t border-border-primary text-xs space-y-1.5">
+        <div className="px-4 py-2.5 border-t border-border-primary/50 text-sm space-y-1.5">
           {changes.map((label, i) => (
             <div key={i} className="text-text-secondary leading-snug">
               {label}
@@ -225,42 +225,35 @@ function ActionCard({
   onDoIt: () => void;
 }) {
   return (
-    <div className="flex justify-start animate-fade-in">
-      <div className="max-w-[80%] rounded-xl border border-border-primary bg-bg-assistant-bubble overflow-hidden">
-        {/* Header */}
-        <div className="px-4 pt-3 pb-1">
-          <span className="text-[11px] font-semibold text-accent-blue">
-            Noah
-          </span>
-        </div>
-
+    <div className="animate-fade-in">
+      <div className="rounded-xl border border-border-primary/50 bg-bg-secondary overflow-hidden">
         {/* Situation */}
-        <div className="px-4 pb-2">
-          <div className="text-[10px] uppercase tracking-wider text-text-muted mb-1">
+        <div className="px-5 pt-4 pb-2">
+          <div className="text-sm font-semibold text-text-secondary mb-1">
             Situation
           </div>
-          <div className="text-sm text-text-primary leading-relaxed">
+          <div className="text-base text-text-primary leading-relaxed">
             {situation}
           </div>
         </div>
 
         {/* Plan */}
-        <div className="px-4 pb-3">
-          <div className="text-[10px] uppercase tracking-wider text-text-muted mb-1">
+        <div className="px-5 pb-3">
+          <div className="text-sm font-semibold text-text-secondary mb-1">
             Plan
           </div>
-          <div className="text-sm text-text-secondary leading-relaxed">
+          <div className="text-base text-text-secondary leading-relaxed">
             {plan}
           </div>
         </div>
 
         {/* Action button */}
-        <div className="px-4 pb-3">
+        <div className="px-5 pb-4">
           <button
             onClick={onDoIt}
             disabled={actionTaken || isProcessing}
             className={`
-              w-full py-2.5 rounded-lg text-sm font-medium transition-all cursor-pointer
+              w-full py-2.5 rounded-lg text-base font-medium transition-all cursor-pointer
               ${
                 actionTaken
                   ? "bg-bg-tertiary text-text-muted cursor-default"
@@ -275,7 +268,7 @@ function ActionCard({
         </div>
 
         {/* Timestamp */}
-        <div className="px-4 pb-2 text-[10px] text-text-muted">
+        <div className="px-5 pb-3 text-[10px] text-text-muted">
           {new Date(timestamp).toLocaleTimeString([], {
             hour: "2-digit",
             minute: "2-digit",
@@ -328,19 +321,16 @@ function DoneCard({
   };
 
   return (
-    <div className="flex justify-start animate-fade-in">
-      <div className="max-w-[80%]">
-        <div className="rounded-xl border border-accent-green/30 bg-accent-green/5 px-4 py-3">
+    <div className="animate-fade-in">
+      <div>
+        <div className="rounded-xl border-l-2 border-accent-green/40 bg-accent-green/5 px-5 py-4">
           <div className="flex items-start gap-2.5">
-            <span className="text-accent-green text-base mt-0.5">{"\u2713"}</span>
+            <span className="text-accent-green text-lg mt-0.5">{"\u2713"}</span>
             <div className="flex-1">
-              <span className="text-[10px] font-medium uppercase tracking-wider text-accent-green">
-                Noah
-              </span>
-              <div className="text-sm text-text-primary leading-relaxed mt-1">
+              <div className="text-base text-text-primary leading-relaxed">
                 {summary}
               </div>
-              <div className="text-[10px] text-text-muted mt-1.5">
+              <div className="text-[10px] text-text-muted mt-2">
                 {new Date(timestamp).toLocaleTimeString([], {
                   hour: "2-digit",
                   minute: "2-digit",
@@ -352,19 +342,19 @@ function DoneCard({
 
         {/* Resolution prompt — only on the latest done card, after load */}
         {isLatestDone && loaded && resolved === null && (
-          <div className="flex items-center gap-2 mt-2 ml-1">
-            <span className="text-[11px] text-text-muted">
+          <div className="flex items-center gap-2.5 mt-3 ml-1">
+            <span className="text-xs text-text-muted">
               Did this fix your issue?
             </span>
             <button
               onClick={() => handleResolve(true)}
-              className="px-2.5 py-1 rounded-md text-[11px] font-medium text-accent-green bg-accent-green/10 hover:bg-accent-green/20 transition-colors cursor-pointer"
+              className="px-3 py-1.5 rounded-lg text-xs font-medium text-accent-green bg-accent-green/10 hover:bg-accent-green/20 transition-colors cursor-pointer"
             >
               Yes, all good
             </button>
             <button
               onClick={() => handleResolve(false)}
-              className="px-2.5 py-1 rounded-md text-[11px] text-text-muted hover:bg-bg-tertiary transition-colors cursor-pointer"
+              className="px-3 py-1.5 rounded-lg text-xs text-text-muted hover:bg-bg-tertiary transition-colors cursor-pointer"
             >
               Not quite
             </button>
@@ -373,16 +363,16 @@ function DoneCard({
 
         {/* Resolution confirmation */}
         {resolved === true && (
-          <div className="flex items-center gap-1.5 mt-2 ml-1">
-            <span className="text-accent-green text-xs">{"\u2713"}</span>
-            <span className="text-[11px] text-text-muted">
+          <div className="flex items-center gap-1.5 mt-3 ml-1">
+            <span className="text-accent-green text-sm">{"\u2713"}</span>
+            <span className="text-xs text-text-muted">
               Marked as resolved
             </span>
           </div>
         )}
         {resolved === false && (
-          <div className="mt-2 ml-1">
-            <span className="text-[11px] text-text-muted">
+          <div className="mt-3 ml-1">
+            <span className="text-xs text-text-muted">
               Got it &mdash; keep chatting and I'll keep working on it.
             </span>
           </div>
@@ -402,18 +392,15 @@ function InfoCard({
   timestamp: number;
 }) {
   return (
-    <div className="flex justify-start animate-fade-in">
-      <div className="max-w-[80%] rounded-xl border border-accent-blue/30 bg-accent-blue/5 px-4 py-3">
+    <div className="animate-fade-in">
+      <div className="rounded-xl border-l-2 border-accent-blue/40 bg-accent-blue/5 px-5 py-4">
         <div className="flex items-start gap-2.5">
-          <span className="text-accent-blue text-base mt-0.5">{"\u2139"}</span>
+          <span className="text-accent-blue text-lg mt-0.5">{"\u2139"}</span>
           <div className="flex-1">
-            <span className="text-[10px] font-medium uppercase tracking-wider text-accent-green">
-              Noah
-            </span>
-            <div className="text-sm text-text-primary leading-relaxed mt-1">
+            <div className="text-base text-text-primary leading-relaxed">
               {summary}
             </div>
-            <div className="text-[10px] text-text-muted mt-1.5">
+            <div className="text-[10px] text-text-muted mt-2">
               {new Date(timestamp).toLocaleTimeString([], {
                 hour: "2-digit",
                 minute: "2-digit",
@@ -431,10 +418,10 @@ function InfoCard({
 function ConfirmationPill({ timestamp }: { timestamp: number }) {
   return (
     <div className="flex justify-end animate-fade-in">
-      <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-accent-green/15 text-accent-green text-xs font-medium">
+      <div className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-accent-green/15 text-accent-green text-sm font-medium">
         <span>{"\u2713"}</span>
         <span>Go ahead</span>
-        <span className="text-[10px] text-accent-green/60 ml-1">
+        <span className="text-xs text-accent-green/60 ml-1">
           {new Date(timestamp).toLocaleTimeString([], {
             hour: "2-digit",
             minute: "2-digit",
@@ -450,52 +437,44 @@ function ConfirmationPill({ timestamp }: { timestamp: number }) {
 function MessageBubble({ message }: { message: Message }) {
   const isUser = message.role === "user";
 
+  if (isUser) {
+    return (
+      <div className="flex justify-end animate-fade-in">
+        <div className="max-w-[75%] rounded-2xl rounded-br-sm bg-bg-user-bubble text-white px-4 py-2.5">
+          <div className="text-base leading-relaxed whitespace-pre-wrap break-words">
+            {message.content}
+          </div>
+          <div className="text-[10px] mt-1 text-white/50 text-right">
+            {new Date(message.timestamp).toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Assistant: no bubble, text flows on background
   return (
-    <div
-      className={`flex animate-fade-in ${
-        isUser ? "justify-end" : "justify-start"
-      }`}
-    >
-      <div
-        className={`
-          max-w-[80%] rounded-xl px-4 py-2.5
-          ${
-            isUser
-              ? "bg-bg-user-bubble text-white rounded-br-sm"
-              : "bg-bg-assistant-bubble text-text-primary border border-border-primary rounded-bl-sm"
-          }
-        `}
-      >
-        {!isUser && (
-          <div className="flex items-center gap-1.5 mb-1">
-            <span className="text-[10px] font-medium uppercase tracking-wider text-accent-green">
-              Noah
-            </span>
-          </div>
-        )}
+    <div className="animate-fade-in">
+      <div className="text-base text-text-primary leading-relaxed whitespace-pre-wrap break-words">
+        {message.content}
+      </div>
 
-        <div className="text-sm leading-relaxed whitespace-pre-wrap break-words">
-          {message.content}
+      {showToolCalls && message.toolCalls && message.toolCalls.length > 0 && (
+        <div className="mt-1">
+          {message.toolCalls.map((tc) => (
+            <ToolCallItem key={tc.id} toolCall={tc} />
+          ))}
         </div>
+      )}
 
-        {showToolCalls && message.toolCalls && message.toolCalls.length > 0 && (
-          <div className="mt-1">
-            {message.toolCalls.map((tc) => (
-              <ToolCallItem key={tc.id} toolCall={tc} />
-            ))}
-          </div>
-        )}
-
-        <div
-          className={`text-[10px] mt-1 ${
-            isUser ? "text-white/50 text-right" : "text-text-muted"
-          }`}
-        >
-          {new Date(message.timestamp).toLocaleTimeString([], {
-            hour: "2-digit",
-            minute: "2-digit",
-          })}
-        </div>
+      <div className="text-[10px] mt-1.5 text-text-muted">
+        {new Date(message.timestamp).toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        })}
       </div>
     </div>
   );
@@ -560,7 +539,7 @@ function MessageDisplay({
   return (
     <div>
       {card}
-      <div className="mt-1 ml-1 max-w-[80%]">
+      <div className="mt-1">
         <ChangesBlock changeIds={message.changeIds!} />
       </div>
     </div>
@@ -672,28 +651,21 @@ function ThinkingIndicator() {
   }, []);
 
   return (
-    <div className="flex justify-start animate-fade-in">
-      <div className="bg-bg-assistant-bubble border border-border-primary rounded-xl rounded-bl-sm px-4 py-3">
-        <div className="flex items-center gap-1.5">
-          <span className="text-[10px] font-medium uppercase tracking-wider text-accent-green mb-1">
-            Noah
+    <div className="animate-fade-in py-1">
+      <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-1">
+          <div className="w-1.5 h-1.5 rounded-full bg-text-muted thinking-dot" />
+          <div className="w-1.5 h-1.5 rounded-full bg-text-muted thinking-dot" />
+          <div className="w-1.5 h-1.5 rounded-full bg-text-muted thinking-dot" />
+        </div>
+        {status && (
+          <span className="text-sm text-text-muted">
+            {status}
+            {elapsed > 0 && (
+              <span className="ml-1 text-text-muted/60">{elapsed}s</span>
+            )}
           </span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1">
-            <div className="w-1.5 h-1.5 rounded-full bg-text-muted thinking-dot" />
-            <div className="w-1.5 h-1.5 rounded-full bg-text-muted thinking-dot" />
-            <div className="w-1.5 h-1.5 rounded-full bg-text-muted thinking-dot" />
-          </div>
-          {status && (
-            <span className="text-xs text-text-muted">
-              {status}
-              {elapsed > 0 && (
-                <span className="ml-1 text-text-muted/60">{elapsed}s</span>
-              )}
-            </span>
-          )}
-        </div>
+        )}
       </div>
     </div>
   );
@@ -735,29 +707,29 @@ function SuggestionCards({
 
   return (
     <div className="flex flex-col items-center justify-center h-full text-text-muted">
-      <NoahIcon className="w-14 h-14 rounded-2xl mb-5" alt="Noah" />
-      <p className="text-base font-semibold text-text-primary mb-1">
+      <NoahIcon className="w-16 h-16 rounded-2xl mb-6" alt="Noah" />
+      <p className="text-3xl font-semibold text-text-primary mb-2">
         How can I help?
       </p>
-      <p className="text-sm text-text-secondary mb-6">
+      <p className="text-base text-text-secondary mb-8">
         {contextual.length > 0
           ? "Based on what I know about your system, or try something new."
           : "Describe your problem, or try one of these:"}
       </p>
-      <div className="grid grid-cols-2 gap-2.5 w-full max-w-sm">
+      <div className="grid grid-cols-2 gap-3 w-full max-w-md">
         {allSuggestions.map((s) => (
           <button
             key={s.label}
             onClick={() => onSelect(s.label)}
             disabled={disabled}
-            className="flex items-start gap-2.5 px-3.5 py-3 rounded-xl border border-border-primary bg-bg-secondary hover:bg-bg-tertiary hover:border-accent-blue/40 transition-all text-left cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-start gap-3 px-4 py-4 rounded-xl border border-border-primary/50 bg-bg-secondary hover:bg-bg-tertiary hover:border-accent-blue/40 transition-all text-left cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <span className="text-base mt-0.5">{s.icon}</span>
+            <span className="text-lg mt-0.5">{s.icon}</span>
             <div className="min-w-0">
-              <div className="text-xs font-medium text-text-primary leading-snug">
+              <div className="text-sm font-medium text-text-primary leading-snug">
                 {s.label}
               </div>
-              <div className="text-[10px] text-text-muted mt-0.5">
+              <div className="text-xs text-text-muted mt-0.5">
                 {s.description}
               </div>
             </div>
@@ -811,7 +783,7 @@ export function ChatPanel() {
   return (
     <div className="flex flex-col flex-1 min-h-0">
       {/* Messages area */}
-      <div className="flex-1 overflow-y-auto px-4 py-4">
+      <div className="flex-1 overflow-y-auto px-6 py-4">
         {(() => {
           // Find the last "done" message so only it shows the resolution prompt
           const latestDoneId = [...messages]
@@ -831,7 +803,7 @@ export function ChatPanel() {
           }
           if (messages.length === 1 && messages[0].role === "system") {
             return (
-              <div className="max-w-2xl mx-auto space-y-4">
+              <div className="max-w-3xl w-full mx-auto space-y-5">
                 <MessageDisplay
                   message={messages[0]}
                   isProcessing={isProcessing}
@@ -847,7 +819,7 @@ export function ChatPanel() {
             );
           }
           return (
-            <div className="max-w-2xl mx-auto space-y-3">
+            <div className="max-w-3xl w-full mx-auto space-y-5">
               {messages.map((msg) => (
                 <MessageDisplay
                   key={msg.id}
@@ -866,8 +838,8 @@ export function ChatPanel() {
       </div>
 
       {/* Input area */}
-      <div className="border-t border-border-primary bg-bg-secondary px-4 py-3">
-          <div className="max-w-2xl mx-auto">
+      <div className="border-t border-border-primary bg-bg-secondary px-6 py-3">
+          <div className="max-w-3xl w-full mx-auto">
             <div className="flex items-end gap-2 bg-bg-input rounded-xl border border-border-primary focus-within:border-accent-blue/40 transition-colors">
               <textarea
                 ref={textareaRef}
@@ -877,7 +849,7 @@ export function ChatPanel() {
                 placeholder="Tell Noah what you need help with..."
                 rows={1}
                 disabled={isProcessing}
-                className="flex-1 bg-transparent text-sm text-text-primary placeholder-text-muted px-4 py-2.5 resize-none outline-none min-h-[38px] max-h-[120px]"
+                className="flex-1 bg-transparent text-base text-text-primary placeholder-text-muted px-4 py-3 resize-none outline-none min-h-[44px] max-h-[120px]"
               />
               <div className="flex items-center gap-1 pr-2 pb-1.5">
                 {isProcessing ? (
@@ -930,9 +902,6 @@ export function ChatPanel() {
                 )}
               </div>
             </div>
-            <p className="text-[10px] text-text-muted mt-1.5 text-center">
-              Press Enter to send, Shift+Enter for new line
-            </p>
           </div>
         </div>
     </div>
