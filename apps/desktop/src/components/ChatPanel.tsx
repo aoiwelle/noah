@@ -10,6 +10,10 @@ import { NoahIcon } from "./NoahIcon";
 
 const showToolCalls = import.meta.env.DEV;
 
+function formatTime(ts: number) {
+  return new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
 // ── Tool Call Display ──
 
 function ToolCallItem({ toolCall }: { toolCall: ToolCall }) {
@@ -225,7 +229,7 @@ function ActionCard({
   onDoIt: () => void;
 }) {
   return (
-    <div className="animate-fade-in">
+    <div className="group animate-fade-in">
       <div className="rounded-xl border border-border-primary/50 bg-bg-secondary overflow-hidden">
         {/* Situation */}
         <div className="px-5 pt-4 pb-2">
@@ -266,14 +270,9 @@ function ActionCard({
             {actionTaken ? "Sent" : actionLabel}
           </button>
         </div>
-
-        {/* Timestamp */}
-        <div className="px-5 pb-3 text-[10px] text-text-muted">
-          {new Date(timestamp).toLocaleTimeString([], {
-            hour: "2-digit",
-            minute: "2-digit",
-          })}
-        </div>
+      </div>
+      <div className="text-[10px] mt-1 text-text-muted opacity-0 group-hover:opacity-100 transition-opacity">
+        {formatTime(timestamp)}
       </div>
     </div>
   );
@@ -321,7 +320,7 @@ function DoneCard({
   };
 
   return (
-    <div className="animate-fade-in">
+    <div className="group animate-fade-in">
       <div>
         <div className="rounded-xl border-l-2 border-accent-green/40 bg-accent-green/5 px-5 py-4">
           <div className="flex items-start gap-2.5">
@@ -330,14 +329,12 @@ function DoneCard({
               <div className="text-base text-text-primary leading-relaxed">
                 {summary}
               </div>
-              <div className="text-[10px] text-text-muted mt-2">
-                {new Date(timestamp).toLocaleTimeString([], {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
-              </div>
             </div>
           </div>
+        </div>
+
+        <div className="text-[10px] mt-1 text-text-muted opacity-0 group-hover:opacity-100 transition-opacity">
+          {formatTime(timestamp)}
         </div>
 
         {/* Resolution prompt — only on the latest done card, after load */}
@@ -392,7 +389,7 @@ function InfoCard({
   timestamp: number;
 }) {
   return (
-    <div className="animate-fade-in">
+    <div className="group animate-fade-in">
       <div className="rounded-xl border-l-2 border-accent-blue/40 bg-accent-blue/5 px-5 py-4">
         <div className="flex items-start gap-2.5">
           <span className="text-accent-blue text-lg mt-0.5">{"\u2139"}</span>
@@ -400,14 +397,11 @@ function InfoCard({
             <div className="text-base text-text-primary leading-relaxed">
               {summary}
             </div>
-            <div className="text-[10px] text-text-muted mt-2">
-              {new Date(timestamp).toLocaleTimeString([], {
-                hour: "2-digit",
-                minute: "2-digit",
-              })}
-            </div>
           </div>
         </div>
+      </div>
+      <div className="text-[10px] mt-1 text-text-muted opacity-0 group-hover:opacity-100 transition-opacity">
+        {formatTime(timestamp)}
       </div>
     </div>
   );
@@ -417,16 +411,13 @@ function InfoCard({
 
 function ConfirmationPill({ timestamp }: { timestamp: number }) {
   return (
-    <div className="flex justify-end animate-fade-in">
+    <div className="group flex flex-col items-end animate-fade-in">
       <div className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-accent-green/15 text-accent-green text-sm font-medium">
         <span>{"\u2713"}</span>
         <span>Go ahead</span>
-        <span className="text-xs text-accent-green/60 ml-1">
-          {new Date(timestamp).toLocaleTimeString([], {
-            hour: "2-digit",
-            minute: "2-digit",
-          })}
-        </span>
+      </div>
+      <div className="text-[10px] mt-1 text-text-muted opacity-0 group-hover:opacity-100 transition-opacity">
+        {formatTime(timestamp)}
       </div>
     </div>
   );
@@ -439,16 +430,15 @@ function MessageBubble({ message }: { message: Message }) {
 
   if (isUser) {
     return (
-      <div className="flex justify-end animate-fade-in">
-        <div className="max-w-[75%] rounded-2xl rounded-br-sm bg-bg-user-bubble text-white px-4 py-2.5">
-          <div className="text-base leading-relaxed whitespace-pre-wrap break-words">
-            {message.content}
+      <div className="group flex justify-end animate-fade-in">
+        <div className="max-w-[75%]">
+          <div className="rounded-2xl rounded-br-sm bg-bg-user-bubble text-white px-4 py-2.5">
+            <div className="text-base leading-relaxed whitespace-pre-wrap break-words">
+              {message.content}
+            </div>
           </div>
-          <div className="text-[10px] mt-1 text-white/50 text-right">
-            {new Date(message.timestamp).toLocaleTimeString([], {
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
+          <div className="text-[10px] mt-1 text-text-muted text-right opacity-0 group-hover:opacity-100 transition-opacity">
+            {formatTime(message.timestamp)}
           </div>
         </div>
       </div>
@@ -457,7 +447,7 @@ function MessageBubble({ message }: { message: Message }) {
 
   // Assistant: no bubble, text flows on background
   return (
-    <div className="animate-fade-in">
+    <div className="group animate-fade-in">
       <div className="text-base text-text-primary leading-relaxed whitespace-pre-wrap break-words">
         {message.content}
       </div>
@@ -470,11 +460,8 @@ function MessageBubble({ message }: { message: Message }) {
         </div>
       )}
 
-      <div className="text-[10px] mt-1.5 text-text-muted">
-        {new Date(message.timestamp).toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit",
-        })}
+      <div className="text-[10px] mt-1.5 text-text-muted opacity-0 group-hover:opacity-100 transition-opacity">
+        {formatTime(message.timestamp)}
       </div>
     </div>
   );
