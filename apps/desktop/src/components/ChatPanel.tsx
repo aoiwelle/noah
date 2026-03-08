@@ -1109,13 +1109,14 @@ function formatActivityEntry(evt: DebugLogPayload): ActivityEntry | null {
   }
 }
 
-function ThinkingIndicator({ isPlaybook }: { isPlaybook: boolean }) {
-  const [status, setStatus] = useState<string | null>(null);
-  const [elapsed, setElapsed] = useState(0);
-  const startRef = useRef(Date.now());
+/** Persistent activity log — survives across processing cycles in playbook mode. */
+function useActivityLog() {
   const [activity, setActivity] = useState<ActivityEntry[]>([]);
-  const [expanded, setExpanded] = useState(isPlaybook);
-  const logRef = useRef<HTMLDivElement>(null);
+  const [isPlaybook, setIsPlaybook] = useState(false);
+  const [status, setStatus] = useState<string | null>(null);
+  const elapsedRef = useRef(0);
+  const startRef = useRef(Date.now());
+  const [elapsed, setElapsed] = useState(0);
 
   useEffect(() => {
     const unlisten = listen<DebugLogPayload>("debug-log", (e) => {
@@ -1123,24 +1124,22 @@ function ThinkingIndicator({ isPlaybook }: { isPlaybook: boolean }) {
       if (evt.event_type === "tool_call") {
         setStatus(humanizeToolCall(evt.summary));
         startRef.current = Date.now();
+        elapsedRef.current = 0;
         setElapsed(0);
       } else if (evt.event_type === "llm_request") {
         setStatus("Thinking...");
         startRef.current = Date.now();
+        elapsedRef.current = 0;
         setElapsed(0);
       } else if (evt.event_type === "playbook_activated") {
-        setExpanded(true);
+        setIsPlaybook(true);
       }
-      // Collect activity for the log
       const entry = formatActivityEntry(evt);
       if (entry) {
-        setActivity(prev => [...prev.slice(-50), entry]); // keep last 50
+        setActivity(prev => [...prev.slice(-50), entry]);
       }
     });
-
-    return () => {
-      unlisten.then((fn) => fn());
-    };
+    return () => { unlisten.then((fn) => fn()); };
   }, []);
 
   useEffect(() => {
@@ -1150,6 +1149,40 @@ function ThinkingIndicator({ isPlaybook }: { isPlaybook: boolean }) {
     return () => clearInterval(timer);
   }, []);
 
+  const clear = useCallback(() => { setActivity([]); setIsPlaybook(false); setStatus(null); }, []);
+
+  return { activity, isPlaybook, status, elapsed, clear };
+}
+
+function ThinkingDots({ status, elapsed }: { status: string | null; elapsed: number }) {
+  return (
+    <div className="flex items-center gap-2.5 py-1">
+      <div className="flex items-center gap-1">
+        <div className="w-1.5 h-1.5 rounded-full bg-text-muted thinking-dot" />
+        <div className="w-1.5 h-1.5 rounded-full bg-text-muted thinking-dot" />
+        <div className="w-1.5 h-1.5 rounded-full bg-text-muted thinking-dot" />
+      </div>
+      {status && (
+        <span className="text-sm text-text-muted">
+          {status}
+          {elapsed > 0 && (
+            <span className="ml-1 text-text-muted/60">{elapsed}s</span>
+          )}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function ActivityLog({ activity, defaultExpanded }: { activity: ActivityEntry[]; defaultExpanded: boolean }) {
+  const [expanded, setExpanded] = useState(defaultExpanded);
+  const logRef = useRef<HTMLDivElement>(null);
+
+  // Auto-expand when defaultExpanded changes to true (playbook activated)
+  useEffect(() => {
+    if (defaultExpanded) setExpanded(true);
+  }, [defaultExpanded]);
+
   // Auto-scroll the log
   useEffect(() => {
     if (expanded && logRef.current) {
@@ -1157,32 +1190,19 @@ function ThinkingIndicator({ isPlaybook }: { isPlaybook: boolean }) {
     }
   }, [activity, expanded]);
 
+  if (activity.length === 0) return null;
+
   return (
-    <div className="animate-fade-in py-1">
-      <div className="flex items-center gap-2.5">
-        <div className="flex items-center gap-1">
-          <div className="w-1.5 h-1.5 rounded-full bg-text-muted thinking-dot" />
-          <div className="w-1.5 h-1.5 rounded-full bg-text-muted thinking-dot" />
-          <div className="w-1.5 h-1.5 rounded-full bg-text-muted thinking-dot" />
-        </div>
-        {status && (
-          <span className="text-sm text-text-muted">
-            {status}
-            {elapsed > 0 && (
-              <span className="ml-1 text-text-muted/60">{elapsed}s</span>
-            )}
-          </span>
-        )}
-        {activity.length > 0 && (
-          <button
-            onClick={() => setExpanded(!expanded)}
-            className="ml-auto text-xs text-text-muted hover:text-text-secondary cursor-pointer"
-          >
-            {expanded ? "Hide details" : "Show details"}
-          </button>
-        )}
+    <div className="py-1">
+      <div className="flex items-center">
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="text-xs text-text-muted hover:text-text-secondary cursor-pointer"
+        >
+          {expanded ? "Hide details" : "Show details"}
+        </button>
       </div>
-      {expanded && activity.length > 0 && (
+      {expanded && (
         <div
           ref={logRef}
           className="mt-2 max-h-48 overflow-y-auto rounded-lg border border-border-primary/50 bg-bg-secondary p-3 font-mono text-xs leading-relaxed"
@@ -1291,6 +1311,7 @@ export function ChatPanel() {
   const [input, setInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const activityLog = useActivityLog();
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -1435,7 +1456,10 @@ export function ChatPanel() {
                   />
                 ));
               })()}
-              {isProcessing && <ThinkingIndicator isPlaybook={messages.some(m => m.assistantUi && "progress" in m.assistantUi && m.assistantUi.progress)} />}
+              {isProcessing && <ThinkingDots status={activityLog.status} elapsed={activityLog.elapsed} />}
+              {(isProcessing || activityLog.isPlaybook) && (
+                <ActivityLog activity={activityLog.activity} defaultExpanded={activityLog.isPlaybook} />
+              )}
             </div>
             <div className="sticky bottom-0 pt-6 pb-4 bg-gradient-to-t from-bg-primary from-90% to-transparent">
               {inputCard}
