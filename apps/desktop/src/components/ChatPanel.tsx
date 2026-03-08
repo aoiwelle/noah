@@ -1468,7 +1468,7 @@ export function ChatPanel() {
                     onConfirm={sendConfirmation}
                     onEvent={handleEvent}
                     onSecureAnswer={handleSecureAnswer}
-                    onSendMessage={sendMessage}
+                    onSendMessage={(text) => { setInput(text); setTimeout(() => textareaRef.current?.focus(), 0); }}
                   />
                 ));
               })()}
