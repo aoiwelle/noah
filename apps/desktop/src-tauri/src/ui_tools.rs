@@ -9,19 +9,30 @@ fn action_type_valid(v: &str) -> bool {
 }
 
 fn normalize_action_from_input(input: &Value) -> Result<(String, String)> {
-    let action = input
-        .get("action")
-        .and_then(|v| v.as_object())
-        .ok_or_else(|| anyhow!("missing action object"))?;
-    let label = action
-        .get("label")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| anyhow!("missing action.label"))?;
-    let action_type = action
-        .get("type")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| anyhow!("missing action.type"))?;
-    Ok((label.to_string(), action_type.to_string()))
+    // Prefer flat fields (action_label, action_type) — more reliable with LLMs.
+    // Fall back to nested action object for backwards compat.
+    if let (Some(label), Some(action_type)) = (
+        input.get("action_label").and_then(|v| v.as_str()),
+        input.get("action_type").and_then(|v| v.as_str()),
+    ) {
+        return Ok((label.to_string(), action_type.to_string()));
+    }
+    // Also accept top-level "label" (models sometimes hoist it)
+    if let Some(label) = input.get("label").and_then(|v| v.as_str()) {
+        let action_type = input.get("action_type")
+            .and_then(|v| v.as_str())
+            .unwrap_or("RUN_STEP");
+        return Ok((label.to_string(), action_type.to_string()));
+    }
+    // Legacy nested action object
+    if let Some(action) = input.get("action").and_then(|v| v.as_object()) {
+        let label = action.get("label").and_then(|v| v.as_str())
+            .ok_or_else(|| anyhow!("missing action.label"))?;
+        let action_type = action.get("type").and_then(|v| v.as_str())
+            .ok_or_else(|| anyhow!("missing action.type"))?;
+        return Ok((label.to_string(), action_type.to_string()));
+    }
+    Err(anyhow!("missing action_label/action_type"))
 }
 
 pub fn ui_payload_from_tool_call(name: &str, input: &Value) -> Result<String> {
@@ -183,17 +194,10 @@ impl Tool for UiSpaTool {
             "situation_md":{"type":"string","description":"Situation or instruction text in Markdown format."},
             "plan_md":{"type":"string","description":"Plan text in Markdown format. Omit when using WAIT_FOR_USER with instructions only."},
             "qr_data":{"type":"string","description":"Optional data string to render as a scannable QR code (e.g. a URL or auth token the user must scan with their phone)."},
-            "action":{
-              "type":"object",
-              "properties":{
-                "label":{"type":"string","description":"Human-readable button label, e.g. 'Fix it' or 'I've done this'."},
-                "type":{"type":"string","enum":["RUN_STEP","WAIT_FOR_USER"],"description":"RUN_STEP: Noah executes an action. WAIT_FOR_USER: user completes an action outside Noah and confirms."}
-              },
-              "required":["label","type"],
-              "additionalProperties":false
-            }
+            "action_label":{"type":"string","description":"Human-readable button label, e.g. 'Fix it' or 'I've done this'."},
+            "action_type":{"type":"string","enum":["RUN_STEP","WAIT_FOR_USER"],"description":"RUN_STEP: Noah executes an action. WAIT_FOR_USER: user completes an action outside Noah and confirms."}
           },
-          "required":["situation_md","action"],
+          "required":["situation_md","action_label","action_type"],
           "additionalProperties":false
         })
     }
