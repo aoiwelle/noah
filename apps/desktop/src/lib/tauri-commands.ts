@@ -53,6 +53,60 @@ export interface KnowledgeEntry {
   playbook_type?: string | null;
 }
 
+// ── UI Protocol Types ──
+
+export type AssistantActionType = "RUN_STEP" | "GATHER";
+
+export interface AssistantQuestionOption {
+  label: string;
+  description: string;
+}
+
+export interface AssistantQuestion {
+  question: string;
+  header: string;
+  options: AssistantQuestionOption[];
+  multiSelect: boolean;
+}
+
+export interface AssistantCardAction {
+  label: string;
+  type: AssistantActionType;
+  gather_schema?: Record<string, unknown>;
+}
+
+export interface AssistantUiSpa {
+  kind: "spa";
+  situation: string;
+  plan: string;
+  action: AssistantCardAction;
+}
+
+export interface AssistantUiUserQuestion {
+  kind: "user_question";
+  questions: AssistantQuestion[];
+}
+
+export interface AssistantUiInfo {
+  kind: "done" | "info";
+  summary: string;
+}
+
+export type AssistantUiPayload =
+  | AssistantUiSpa
+  | AssistantUiUserQuestion
+  | AssistantUiInfo;
+
+export interface SendMessageV2Result {
+  text: string;
+  assistant_ui?: AssistantUiPayload;
+}
+
+export type UserEventType =
+  | "USER_CONFIRM"
+  | "USER_SKIP_OPTIONAL"
+  | "USER_ANSWER_QUESTION";
+
 // ── Tauri Command Wrappers ──
 
 export async function createSession(): Promise<SessionInfo> {
@@ -243,4 +297,37 @@ export async function pauseScan(scanType: string): Promise<void> {
 
 export async function resumeScan(scanType: string): Promise<void> {
   await invoke<void>("resume_scan", { scanType });
+}
+
+// ── V2 Agent Commands ──
+
+export async function sendMessageV2(
+  sessionId: string,
+  message: string,
+  isConfirmation?: boolean,
+): Promise<SendMessageV2Result> {
+  return await invoke<SendMessageV2Result>("send_message_v2", {
+    sessionId,
+    message,
+    isConfirmation,
+  });
+}
+
+export async function sendUserEvent(
+  sessionId: string,
+  eventType: UserEventType,
+  payload?: string,
+): Promise<SendMessageV2Result> {
+  return await invoke<SendMessageV2Result>("send_user_event", {
+    sessionId,
+    eventType,
+    payload,
+  });
+}
+
+export async function recordActionConfirmation(
+  sessionId: string,
+  message: string,
+): Promise<void> {
+  await invoke<void>("record_action_confirmation", { sessionId, message });
 }

@@ -5,6 +5,7 @@ import { useSessionStore } from "../stores/sessionStore";
 import type { Message, ToolCall } from "../stores/chatStore";
 import { useAgent } from "../hooks/useAgent";
 import { parseResponse } from "../lib/parseResponse";
+import type { AssistantQuestion, AssistantUiPayload } from "../lib/tauri-commands";
 import * as commands from "../lib/tauri-commands";
 import { NoahIcon } from "./NoahIcon";
 
@@ -12,6 +13,158 @@ const showToolCalls = import.meta.env.DEV;
 
 function formatTime(ts: number) {
   return new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+// ── Text helpers ──
+
+const URL_PATTERN = /((?:https?:\/\/)?(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}(?:\/[^\s)]*)?)/g;
+
+function normalizeSpaText(input: string): string {
+  return input
+    .replace(/^\s*\*\*\s*$/gm, "")
+    .replace(/\*\*(.*?)\*\*/g, "$1")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function humanizeActionLabel(label: string, actionType?: string): string {
+  const raw = (label || "").trim();
+  const type = (actionType || "").trim();
+
+  const mapByType: Record<string, string> = {
+    RUN_STEP: "Continue",
+    GATHER: "Fill in Details",
+  };
+
+  if (!raw) return mapByType[type] || "Continue";
+
+  const looksEnum = /^[A-Z0-9_]+$/.test(raw);
+  if (looksEnum) {
+    if (mapByType[raw]) return mapByType[raw];
+    return raw
+      .toLowerCase()
+      .split("_")
+      .map((w) => (w ? w[0].toUpperCase() + w.slice(1) : w))
+      .join(" ");
+  }
+
+  return raw;
+}
+
+function LinkedText({ text }: { text: string }) {
+  const parts = text.split(URL_PATTERN);
+  return (
+    <>
+      {parts.map((part, i) => {
+        if (!part) return null;
+        if (!URL_PATTERN.test(part)) {
+          URL_PATTERN.lastIndex = 0;
+          return <span key={i}>{part}</span>;
+        }
+        URL_PATTERN.lastIndex = 0;
+        const href = part.startsWith("http://") || part.startsWith("https://")
+          ? part
+          : `https://${part}`;
+        return (
+          <a
+            key={i}
+            href={href}
+            target="_blank"
+            rel="noreferrer"
+            className="underline decoration-accent-blue/50 underline-offset-2 hover:text-accent-blue"
+          >
+            {part}
+          </a>
+        );
+      })}
+    </>
+  );
+}
+
+function InlineMarkdown({ text }: { text: string }) {
+  const parts = text.split(/(\*\*[^*]+\*\*)/g);
+  return (
+    <>
+      {parts.map((part, i) => {
+        const bold = part.match(/^\*\*([^*]+)\*\*$/);
+        if (bold) {
+          return <strong key={i} className="font-semibold">{bold[1]}</strong>;
+        }
+        return <LinkedText key={i} text={part} />;
+      })}
+    </>
+  );
+}
+
+function MarkdownSummary({ text }: { text: string }) {
+  const lines = text.split("\n");
+  const blocks: React.ReactNode[] = [];
+  let i = 0;
+
+  while (i < lines.length) {
+    const line = lines[i].trim();
+    if (!line) {
+      i += 1;
+      continue;
+    }
+    if (line.startsWith("### ") || line.startsWith("## ") || line.startsWith("# ")) {
+      const level = line.startsWith("### ") ? "h3" : line.startsWith("## ") ? "h2" : "h1";
+      const content = line.replace(/^#{1,3}\s+/, "");
+      const cls = level === "h1"
+        ? "text-lg font-semibold text-text-primary"
+        : level === "h2"
+          ? "text-base font-semibold text-text-primary"
+          : "text-sm font-semibold text-text-primary";
+      blocks.push(
+        <div key={`h-${i}`} className={cls}>
+          <InlineMarkdown text={content} />
+        </div>,
+      );
+      i += 1;
+      continue;
+    }
+
+    if (line.startsWith("- ") || line.startsWith("* ") || /^\d+\.\s+/.test(line)) {
+      const items: string[] = [];
+      while (i < lines.length) {
+        const current = lines[i].trim();
+        if (current.startsWith("- ") || current.startsWith("* ") || /^\d+\.\s+/.test(current)) {
+          items.push(current.replace(/^(-|\*|\d+\.)\s+/, ""));
+          i += 1;
+          continue;
+        }
+        break;
+      }
+      blocks.push(
+        <ul key={`ul-${i}`} className="list-disc pl-5 space-y-1">
+          {items.map((item, idx) => (
+            <li key={idx}>
+              <InlineMarkdown text={item} />
+            </li>
+          ))}
+        </ul>,
+      );
+      continue;
+    }
+
+    const paragraph: string[] = [line];
+    i += 1;
+    while (i < lines.length) {
+      const next = lines[i].trim();
+      if (!next || next.startsWith("#") || next.startsWith("- ") || next.startsWith("* ") || /^\d+\.\s+/.test(next)) {
+        break;
+      }
+      paragraph.push(next);
+      i += 1;
+    }
+    blocks.push(
+      <p key={`p-${i}`} className="whitespace-pre-wrap break-words">
+        <InlineMarkdown text={paragraph.join(" ")} />
+      </p>,
+    );
+  }
+
+  return <div className="space-y-2">{blocks}</div>;
 }
 
 // ── Tool Call Display ──
@@ -69,10 +222,6 @@ function ToolCallItem({ toolCall }: { toolCall: ToolCall }) {
 
 // ── Actions Block (inline per-message) ──
 
-// ── Action classification ────────────────────────────────────────────────────
-// Dedicated tools: classify as diagnostic (read-only) or change (mutating).
-// Only changes are shown to the user; diagnostics are counted but hidden.
-
 const CHANGE_TOOLS: Record<string, string> = {
   mac_flush_dns: "Flushed DNS",
   mac_kill_process: "Stopped a process",
@@ -92,8 +241,6 @@ const CHANGE_TOOLS: Record<string, string> = {
   write_knowledge: "Saved a note",
 };
 
-// Shell command patterns that represent actual changes (not diagnostics).
-// [pattern, label] — order matters (specific before general).
 const SHELL_CHANGE_PATTERNS: [RegExp, string][] = [
   [/\bfind\b.*-exec\s+(mv|cp)\b/, "Organized files"],
   [/\bmkdir\b/, "Created folders"],
@@ -118,7 +265,6 @@ const SHELL_CHANGE_PATTERNS: [RegExp, string][] = [
   [/\b(sfc|DISM|chkdsk)\b/i, "Ran repair tool"],
 ];
 
-/** For a shell_run action, return its change label or null if diagnostic. */
 function shellChangeLabel(description: string): string | null {
   if (!description.startsWith("Executed shell command:")) return null;
   const cmd = description.slice("Executed shell command:".length).trim();
@@ -126,10 +272,9 @@ function shellChangeLabel(description: string): string | null {
     const m = cmd.match(pattern);
     if (m) return label.replace(/\$(\d+)/g, (_, i) => m[+i] || "");
   }
-  return null; // diagnostic
+  return null;
 }
 
-/** Classify an action and return its label, or null if diagnostic. */
 function changeLabel(c: {
   tool_name: string;
   description: string;
@@ -138,7 +283,6 @@ function changeLabel(c: {
   return CHANGE_TOOLS[c.tool_name] || null;
 }
 
-/** Deduplicate change labels, preserving first-seen order. */
 function dedupeChanges(
   actions: { tool_name: string; description: string }[],
 ): { changes: string[]; diagnosticCount: number } {
@@ -166,7 +310,6 @@ function ChangesBlock({ changeIds }: { changeIds: string[] }) {
 
   const { changes, diagnosticCount } = dedupeChanges(matched);
 
-  // If everything was diagnostic, show a simple one-liner
   if (changes.length === 0) {
     return (
       <div className="mt-2 rounded-xl border border-border-primary/50 bg-bg-primary/50 px-4 py-2 text-sm text-text-muted">
@@ -215,6 +358,7 @@ function ActionCard({
   situation,
   plan,
   actionLabel,
+  actionType,
   actionTaken,
   isProcessing,
   timestamp,
@@ -223,31 +367,40 @@ function ActionCard({
   situation: string;
   plan: string;
   actionLabel: string;
+  actionType?: string;
   actionTaken?: boolean;
   isProcessing: boolean;
   timestamp: number;
   onDoIt: () => void;
 }) {
+  const prettySituation = normalizeSpaText(situation);
+  const prettyPlan = normalizeSpaText(plan);
+  const prettyActionLabel = humanizeActionLabel(actionLabel, actionType);
+
   return (
     <div className="group animate-fade-in">
       <div className="rounded-xl border border-border-primary/50 bg-bg-secondary overflow-hidden">
         {/* Situation */}
         <div className="px-5 pt-4 pb-2">
-          <div className="text-sm font-semibold text-text-secondary mb-1">
+          <div className="text-sm font-semibold text-accent-blue mb-1.5 tracking-wide">
             Situation
           </div>
-          <div className="text-base text-text-primary leading-relaxed">
-            {situation}
+          <div className="rounded-lg border border-accent-blue/20 bg-accent-blue/5 px-3.5 py-3 text-base text-text-primary leading-relaxed">
+            <div className="whitespace-pre-wrap break-words">
+              <LinkedText text={prettySituation} />
+            </div>
           </div>
         </div>
 
         {/* Plan */}
         <div className="px-5 pb-3">
-          <div className="text-sm font-semibold text-text-secondary mb-1">
+          <div className="text-sm font-semibold text-accent-purple mb-1.5 tracking-wide">
             Plan
           </div>
-          <div className="text-base text-text-secondary leading-relaxed">
-            {plan}
+          <div className="rounded-lg border border-accent-purple/20 bg-accent-purple/5 px-3.5 py-3 text-base text-text-secondary leading-relaxed">
+            <div className="whitespace-pre-wrap break-words">
+              <LinkedText text={prettyPlan} />
+            </div>
           </div>
         </div>
 
@@ -267,7 +420,78 @@ function ActionCard({
               }
             `}
           >
-            {actionTaken ? "Sent" : actionLabel}
+            {actionTaken ? "Sent" : prettyActionLabel}
+          </button>
+        </div>
+      </div>
+      <div className="text-[10px] mt-1 text-text-muted opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+        {formatTime(timestamp)}
+      </div>
+    </div>
+  );
+}
+
+// ── User Question Card ──
+
+function UserQuestionCard({
+  questions,
+  actionTaken,
+  isProcessing,
+  timestamp,
+  onAnswer,
+  onSkip,
+}: {
+  questions: AssistantQuestion[];
+  actionTaken?: boolean;
+  isProcessing: boolean;
+  timestamp: number;
+  onAnswer: (answer: string) => void;
+  onSkip: () => void;
+}) {
+  const [selectedOption, setSelectedOption] = useState<string>("");
+  const first = questions[0];
+  if (!first) return null;
+
+  return (
+    <div className="group animate-fade-in">
+      <div className="rounded-xl border border-border-primary/50 bg-bg-secondary overflow-hidden">
+        <div className="px-5 pt-4 pb-3">
+          <div className="text-sm font-semibold text-accent-blue mb-1.5 tracking-wide">
+            {first.header}
+          </div>
+          <div className="text-base text-text-primary mb-3">{first.question}</div>
+          <div className="space-y-2">
+            {first.options.map((opt) => (
+              <button
+                key={opt.label}
+                onClick={() => setSelectedOption(opt.label)}
+                disabled={actionTaken || isProcessing}
+                className={`w-full text-left rounded-lg border px-3 py-2 transition-colors cursor-pointer ${
+                  selectedOption === opt.label
+                    ? "border-accent-blue bg-accent-blue/10"
+                    : "border-border-primary bg-bg-secondary hover:bg-bg-tertiary"
+                }`}
+              >
+                <div className="text-sm font-medium text-text-primary">{opt.label}</div>
+                <div className="text-xs text-text-muted">{opt.description}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="px-5 pb-4">
+          <button
+            onClick={() => onAnswer(selectedOption)}
+            disabled={actionTaken || isProcessing || !selectedOption}
+            className="w-full py-2.5 rounded-lg text-base font-medium transition-all cursor-pointer bg-accent-blue text-white hover:bg-accent-blue/80 disabled:opacity-60"
+          >
+            {actionTaken ? "Sent" : "Submit"}
+          </button>
+          <button
+            onClick={onSkip}
+            disabled={actionTaken || isProcessing}
+            className="w-full py-2 mt-2 rounded-lg border border-border-primary text-text-secondary hover:bg-bg-tertiary cursor-pointer disabled:opacity-60"
+          >
+            Skip For Now
           </button>
         </div>
       </div>
@@ -294,7 +518,6 @@ function DoneCard({
   const [resolved, setResolved] = useState<boolean | null>(null);
   const [loaded, setLoaded] = useState(false);
 
-  // Load persisted resolution status on mount
   useEffect(() => {
     if (!sessionId || !isLatestDone) return;
     commands
@@ -321,21 +544,18 @@ function DoneCard({
 
   return (
     <div className="group animate-fade-in">
-      {/* Summary card */}
       <div className="rounded-xl border border-accent-green/20 bg-accent-green/5 px-5 py-4">
         <div className="flex items-start gap-2.5">
           <span className="text-accent-green text-lg mt-0.5">{"\u2713"}</span>
           <div className="flex-1">
             <div className="text-base text-text-primary leading-relaxed">
-              {summary}
+              <MarkdownSummary text={summary} />
             </div>
           </div>
         </div>
       </div>
 
-      {/* Metadata row — hover to reveal timestamp & resolved status */}
       <div className="flex items-center gap-3 mt-1.5 min-h-[24px]">
-        {/* Resolution prompt or status */}
         {isLatestDone && loaded && resolved === null && (
           <div className="flex items-center gap-2">
             <span className="text-xs text-text-muted">Fixed?</span>
@@ -365,7 +585,6 @@ function DoneCard({
           </span>
         )}
 
-        {/* Timestamp — hover reveal */}
         <span className="text-[10px] text-text-muted opacity-0 group-hover:opacity-100 transition-opacity duration-150">
           {formatTime(timestamp)}
         </span>
@@ -390,7 +609,7 @@ function InfoCard({
           <span className="text-accent-blue text-lg mt-0.5">{"\u2139"}</span>
           <div className="flex-1">
             <div className="text-base text-text-primary leading-relaxed">
-              {summary}
+              <MarkdownSummary text={summary} />
             </div>
           </div>
         </div>
@@ -440,7 +659,6 @@ function MessageBubble({ message }: { message: Message }) {
     );
   }
 
-  // Assistant: no bubble, text flows on background
   return (
     <div className="group animate-fade-in">
       <div className="text-base text-text-primary leading-relaxed whitespace-pre-wrap break-words">
@@ -462,6 +680,65 @@ function MessageBubble({ message }: { message: Message }) {
   );
 }
 
+// ── Helper to render from AssistantUiPayload ──
+
+function renderFromUiPayload(
+  ui: AssistantUiPayload,
+  message: Message,
+  isProcessing: boolean,
+  isLatestDone: boolean,
+  sessionId: string | null,
+  onConfirm: (messageId: string) => void,
+  onEvent: (eventType: "USER_ANSWER_QUESTION" | "USER_SKIP_OPTIONAL", payload?: string) => void,
+): React.ReactNode {
+  switch (ui.kind) {
+    case "spa":
+      return (
+        <ActionCard
+          situation={ui.situation}
+          plan={ui.plan}
+          actionLabel={ui.action.label}
+          actionType={ui.action.type}
+          actionTaken={message.actionTaken}
+          isProcessing={isProcessing}
+          timestamp={message.timestamp}
+          onDoIt={() => onConfirm(message.id)}
+        />
+      );
+    case "user_question":
+      return (
+        <UserQuestionCard
+          questions={ui.questions}
+          actionTaken={message.actionTaken}
+          isProcessing={isProcessing}
+          timestamp={message.timestamp}
+          onAnswer={(answer) =>
+            onEvent("USER_ANSWER_QUESTION", JSON.stringify({ answer }))
+          }
+          onSkip={() => onEvent("USER_SKIP_OPTIONAL")}
+        />
+      );
+    case "done":
+      return (
+        <DoneCard
+          summary={ui.summary}
+          timestamp={message.timestamp}
+          isLatestDone={isLatestDone}
+          sessionId={sessionId}
+        />
+      );
+    case "info":
+      return (
+        <InfoCard
+          summary={ui.summary}
+          timestamp={message.timestamp}
+        />
+      );
+    default:
+      return <MessageBubble message={message} />;
+  }
+}
+
 // ── Message Router (picks the right card for each message) ──
 
 function MessageDisplay({
@@ -470,12 +747,14 @@ function MessageDisplay({
   isLatestDone,
   sessionId,
   onConfirm,
+  onEvent,
 }: {
   message: Message;
   isProcessing: boolean;
   isLatestDone: boolean;
   sessionId: string | null;
   onConfirm: (messageId: string) => void;
+  onEvent: (eventType: "USER_ANSWER_QUESTION" | "USER_SKIP_OPTIONAL", payload?: string) => void;
 }) {
   // User confirmation pill
   if (message.role === "user" && message.actionConfirmation) {
@@ -487,33 +766,73 @@ function MessageDisplay({
     return <MessageBubble message={message} />;
   }
 
-  // Parse assistant messages for structured format
-  const parsed = parseResponse(message.content);
   const hasActions = message.changeIds && message.changeIds.length > 0;
 
+  // Prefer structured assistantUi if available
   let card: React.ReactNode;
-  switch (parsed.type) {
-    case "action":
-      card = (
-        <ActionCard
-          situation={parsed.situation}
-          plan={parsed.plan}
-          actionLabel={parsed.actionLabel}
-          actionTaken={message.actionTaken}
-          isProcessing={isProcessing}
-          timestamp={message.timestamp}
-          onDoIt={() => onConfirm(message.id)}
-        />
-      );
-      break;
-    case "done":
-      card = <DoneCard summary={parsed.summary} timestamp={message.timestamp} isLatestDone={isLatestDone} sessionId={sessionId} />;
-      break;
-    case "info":
-      card = <InfoCard summary={parsed.summary} timestamp={message.timestamp} />;
-      break;
-    default:
-      card = <MessageBubble message={message} />;
+  if (message.assistantUi) {
+    card = renderFromUiPayload(
+      message.assistantUi,
+      message,
+      isProcessing,
+      isLatestDone,
+      sessionId,
+      onConfirm,
+      onEvent,
+    );
+  } else {
+    // Fall back to parsing text (backward compat for old sessions)
+    const parsed = parseResponse(message.content);
+    switch (parsed.type) {
+      case "action":
+        card = (
+          <ActionCard
+            situation={parsed.situation}
+            plan={parsed.plan}
+            actionLabel={parsed.actionLabel}
+            actionType={parsed.actionType}
+            actionTaken={message.actionTaken}
+            isProcessing={isProcessing}
+            timestamp={message.timestamp}
+            onDoIt={() => onConfirm(message.id)}
+          />
+        );
+        break;
+      case "user_question":
+        card = (
+          <UserQuestionCard
+            questions={parsed.questions}
+            actionTaken={message.actionTaken}
+            isProcessing={isProcessing}
+            timestamp={message.timestamp}
+            onAnswer={(answer) =>
+              onEvent("USER_ANSWER_QUESTION", JSON.stringify({ answer }))
+            }
+            onSkip={() => onEvent("USER_SKIP_OPTIONAL")}
+          />
+        );
+        break;
+      case "done":
+        card = (
+          <DoneCard
+            summary={parsed.summary}
+            timestamp={message.timestamp}
+            isLatestDone={isLatestDone}
+            sessionId={sessionId}
+          />
+        );
+        break;
+      case "info":
+        card = (
+          <InfoCard
+            summary={parsed.summary}
+            timestamp={message.timestamp}
+          />
+        );
+        break;
+      default:
+        card = <MessageBubble message={message} />;
+    }
   }
 
   if (!hasActions) return card;
@@ -531,7 +850,6 @@ function MessageDisplay({
 // ── Humanize tool names for the thinking indicator ──
 
 const TOOL_HUMAN_NAMES: Record<string, string> = {
-  // macOS tools
   mac_network_info: "Checking network",
   mac_ping: "Testing connectivity",
   mac_dns_check: "Checking DNS",
@@ -554,7 +872,6 @@ const TOOL_HUMAN_NAMES: Record<string, string> = {
   mac_restart_cups: "Restarting print service",
   mac_cancel_print_jobs: "Cancelling print jobs",
   mac_move_file: "Moving file",
-  // Windows tools
   win_network_info: "Checking network",
   win_ping: "Testing connectivity",
   win_dns_check: "Checking DNS",
@@ -580,7 +897,6 @@ const TOOL_HUMAN_NAMES: Record<string, string> = {
   win_startup_programs: "Checking startup programs",
   win_service_list: "Listing services",
   win_restart_service: "Restarting service",
-  // Knowledge tools
   write_knowledge: "Saving knowledge",
   search_knowledge: "Searching knowledge",
   read_knowledge: "Reading knowledge",
@@ -610,7 +926,7 @@ function ThinkingIndicator() {
       const evt = e.payload;
       if (evt.event_type === "tool_call") {
         setStatus(humanizeToolCall(evt.summary));
-        startRef.current = Date.now(); // Reset timer on new tool
+        startRef.current = Date.now();
         setElapsed(0);
       } else if (evt.event_type === "llm_request") {
         setStatus("Thinking...");
@@ -624,7 +940,6 @@ function ThinkingIndicator() {
     };
   }, []);
 
-  // Tick elapsed time every second
   useEffect(() => {
     const timer = setInterval(() => {
       setElapsed(Math.floor((Date.now() - startRef.current) / 1000));
@@ -734,19 +1049,17 @@ function WelcomeHero({ hasContextual }: { hasContextual: boolean }) {
 export function ChatPanel() {
   const messages = useChatStore((s) => s.messages);
   const sessionId = useSessionStore((s) => s.sessionId);
-  const { sendMessage, sendConfirmation, cancelProcessing, isProcessing } =
+  const { sendMessage, sendConfirmation, sendEvent, cancelProcessing, isProcessing } =
     useAgent();
 
   const [input, setInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Auto-scroll to bottom on new messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isProcessing]);
 
-  // Auto-resize textarea
   useEffect(() => {
     const el = textareaRef.current;
     if (el) {
@@ -769,9 +1082,15 @@ export function ChatPanel() {
     }
   };
 
+  const handleEvent = useCallback(
+    (eventType: "USER_ANSWER_QUESTION" | "USER_SKIP_OPTIONAL", payload?: string) => {
+      sendEvent(eventType, payload);
+    },
+    [sendEvent],
+  );
+
   const showWelcome = messages.length === 0 || (messages.length === 1 && messages[0].role === "system");
 
-  // Shared floating input card
   const inputCard = (
     <div className="max-w-4xl w-full mx-auto">
       <div className="flex items-end gap-2 bg-bg-secondary rounded-2xl border border-border-primary focus-within:border-accent-blue/40 transition-colors shadow-sm">
@@ -824,7 +1143,6 @@ export function ChatPanel() {
     <div className="flex flex-col flex-1 min-h-0">
       <div className="flex-1 overflow-y-auto px-6 py-4">
         {showWelcome ? (
-          /* Welcome: hero + cards + input centered in viewport */
           <div className="flex flex-col items-center justify-center h-full gap-8">
             <WelcomeHero hasContextual={false} />
             {!input.trim() && (
@@ -838,16 +1156,18 @@ export function ChatPanel() {
             </div>
           </div>
         ) : (
-          /* Conversation: messages then input floating at bottom */
           <div className="flex flex-col min-h-full">
             <div className="max-w-3xl w-full mx-auto space-y-5 flex-1">
               {(() => {
+                const isLatestDoneMsg = (msg: Message) => {
+                  if (msg.assistantUi) {
+                    return msg.assistantUi.kind === "done";
+                  }
+                  return msg.role === "assistant" && parseResponse(msg.content).type === "done";
+                };
                 const latestDoneId = [...messages]
                   .reverse()
-                  .find(
-                    (m) =>
-                      m.role === "assistant" && parseResponse(m.content).type === "done",
-                  )?.id ?? null;
+                  .find((m) => isLatestDoneMsg(m))?.id ?? null;
 
                 return messages.map((msg) => (
                   <MessageDisplay
@@ -857,6 +1177,7 @@ export function ChatPanel() {
                     isLatestDone={msg.id === latestDoneId}
                     sessionId={sessionId}
                     onConfirm={sendConfirmation}
+                    onEvent={handleEvent}
                   />
                 ));
               })()}

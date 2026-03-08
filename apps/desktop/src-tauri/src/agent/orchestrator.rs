@@ -17,6 +17,7 @@ use crate::agent::prompts;
 use crate::agent::tool_router::ToolRouter;
 use crate::knowledge;
 use crate::safety::journal;
+use crate::ui_tools;
 
 /// A pending approval that the frontend must accept or deny.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -200,6 +201,24 @@ impl Orchestrator {
         // Accumulate text across all loop iterations so we don't lose text
         // from turns where the LLM returns both text AND tool calls.
         let mut all_text_parts: Vec<String> = Vec::new();
+        let mut ui_protocol_retries = 0usize;
+
+        let mut handle_ui_protocol_error = |reason: String| -> Option<String> {
+            ui_protocol_retries += 1;
+            if ui_protocol_retries >= 3 {
+                return Some(
+                    json!({
+                        "kind": "info",
+                        "summary": format!(
+                            "I hit an internal response-format issue ({}). Please try again.",
+                            reason
+                        )
+                    })
+                    .to_string(),
+                );
+            }
+            None
+        };
 
         // Agentic loop: keep calling the LLM until we get a text-only response.
         loop {
@@ -306,6 +325,73 @@ impl Orchestrator {
                     role: "assistant".to_string(),
                     content: MessageContent::Blocks(assistant_blocks),
                 });
+            }
+
+            // Intercept UI tool calls — exactly 1 ui_* call, no mixing with other tools.
+            if !tool_uses.is_empty() {
+                let ui_calls: Vec<&(String, String, Value)> = tool_uses
+                    .iter()
+                    .filter(|(_, name, _)| matches!(name.as_str(), "ui_spa" | "ui_user_question" | "ui_info" | "ui_done"))
+                    .collect();
+                if !ui_calls.is_empty() {
+                    if ui_calls.len() != tool_uses.len() || ui_calls.len() != 1 {
+                        // Policy violation: mixed or multiple ui_* calls
+                        let guard_msg = "Policy guard: do not mix ui_* tools with other tools or multiple ui_* tools in one turn. Use exactly one ui_* tool call as the final response step.";
+                        let mut blocks = Vec::new();
+                        for (id, _, _) in &tool_uses {
+                            blocks.push(ContentBlock::ToolResult {
+                                tool_use_id: id.clone(),
+                                content: guard_msg.to_string(),
+                                is_error: Some(true),
+                            });
+                        }
+                        let session = self.sessions.get_mut(session_id).unwrap();
+                        session.messages.push(Message {
+                            role: "user".to_string(),
+                            content: MessageContent::Blocks(blocks),
+                        });
+                        if let Some(fallback) = handle_ui_protocol_error("mixed/multiple ui_* calls".to_string()) {
+                            return Ok(fallback);
+                        }
+                        continue;
+                    }
+                    // Exactly one ui_* call — validate and return the payload
+                    let (tool_use_id, name, input) = ui_calls[0];
+                    match ui_tools::ui_payload_from_tool_call(name, input) {
+                        Ok(payload) => {
+                            let session = self.sessions.get_mut(session_id).unwrap();
+                            session.messages.push(Message {
+                                role: "user".to_string(),
+                                content: MessageContent::Blocks(vec![ContentBlock::ToolResult {
+                                    tool_use_id: tool_use_id.clone(),
+                                    content: payload.clone(),
+                                    is_error: None,
+                                }]),
+                            });
+                            return Ok(payload);
+                        }
+                        Err(err) => {
+                            let session = self.sessions.get_mut(session_id).unwrap();
+                            session.messages.push(Message {
+                                role: "user".to_string(),
+                                content: MessageContent::Blocks(vec![ContentBlock::ToolResult {
+                                    tool_use_id: tool_use_id.clone(),
+                                    content: format!(
+                                        "Policy guard: invalid ui_* payload: {}. Re-emit one valid ui_* tool call matching schema.",
+                                        err
+                                    ),
+                                    is_error: Some(true),
+                                }]),
+                            });
+                            if let Some(fallback) =
+                                handle_ui_protocol_error(format!("invalid ui_* payload: {}", err))
+                            {
+                                return Ok(fallback);
+                            }
+                            continue;
+                        }
+                    }
+                }
             }
 
             // If no tool calls, we're done — return all accumulated text.

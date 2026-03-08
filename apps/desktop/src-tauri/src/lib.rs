@@ -7,6 +7,7 @@ mod playbooks;
 mod proactive;
 mod safety;
 mod scanner;
+mod ui_tools;
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -205,6 +206,9 @@ pub fn run() {
             router.register(Box::new(knowledge::ReadKnowledgeTool::new(knowledge_dir.clone())));
             router.register(Box::new(knowledge::ListKnowledgeTool::new(knowledge_dir.clone())));
 
+            // Register UI tools.
+            ui_tools::register_ui_tools(&mut router);
+
             // Seed built-in playbooks into knowledge/playbooks/ and register activate_playbook.
             let playbook_registry = playbooks::PlaybookRegistry::init(&knowledge_dir)
                 .expect("Failed to initialise playbooks");
@@ -282,6 +286,9 @@ pub fn run() {
             commands::session::export_session,
             commands::session::mark_resolved,
             commands::agent::send_message,
+            commands::agent::send_message_v2,
+            commands::agent::send_user_event,
+            commands::agent::record_action_confirmation,
             commands::agent::approve_action,
             commands::agent::deny_action,
             commands::agent::cancel_processing,
