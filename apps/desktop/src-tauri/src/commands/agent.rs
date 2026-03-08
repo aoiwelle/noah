@@ -511,14 +511,13 @@ mod tests {
     }
 
     #[test]
-    fn parses_real_json_open_secure_form_as_run_step() {
-        // Old sessions have OPEN_SECURE_FORM — should gracefully default to RunStep
-        let text = r###"{"action":{"label":"Enter API Keys","type":"OPEN_SECURE_FORM"},"kind":"spa","plan":"Open a secure form for credentials.","situation":"Needs configuration."}"###;
+    fn parses_unknown_action_type_as_run_step() {
+        // Old sessions may have unknown action types — should gracefully default to RunStep
+        let text = r###"{"action":{"label":"Enter Settings","type":"UNKNOWN_TYPE"},"kind":"spa","plan":"Open settings form.","situation":"Needs configuration."}"###;
         let ui = parse_assistant_ui(text);
         match ui {
             Some(AssistantUiPayload::Spa(card)) => {
-                assert_eq!(card.action.label, "Enter API Keys");
-                // Unknown types should default to RunStep
+                assert_eq!(card.action.label, "Enter Settings");
                 assert_eq!(card.action.action_type, AssistantActionType::RunStep);
             }
             _ => panic!("expected spa ui, got {:?}", ui),
@@ -526,12 +525,12 @@ mod tests {
     }
 
     #[test]
-    fn parses_real_json_openclaw_secure_capture_as_run_step() {
-        let text = r###"{"action":{"label":"Configure Provider","type":"OPENCLAW_SECURE_CAPTURE"},"kind":"spa","plan":"I'll guide you through setup.","situation":"Need credentials."}"###;
+    fn parses_another_unknown_action_type_as_run_step() {
+        let text = r###"{"action":{"label":"Configure Service","type":"CUSTOM_FORM"},"kind":"spa","plan":"I'll guide you through setup.","situation":"Need configuration."}"###;
         let ui = parse_assistant_ui(text);
         match ui {
             Some(AssistantUiPayload::Spa(card)) => {
-                assert_eq!(card.action.label, "Configure Provider");
+                assert_eq!(card.action.label, "Configure Service");
                 assert_eq!(card.action.action_type, AssistantActionType::RunStep);
             }
             _ => panic!("expected spa ui, got {:?}", ui),
@@ -590,14 +589,13 @@ mod tests {
     }
 
     #[test]
-    fn parses_legacy_openclaw_action_marker() {
-        // Legacy marker with OPENCLAW_SECURE_CAPTURE as label — should parse as Spa
-        let text = "[SITUATION]\nOpenClaw needs configuration.\n[PLAN]\nCapture credentials.\n[ACTION: OPENCLAW_SECURE_CAPTURE]";
+    fn parses_legacy_action_marker_with_custom_label() {
+        // Legacy marker with unusual label — should parse as Spa with RunStep
+        let text = "[SITUATION]\nService needs configuration.\n[PLAN]\nCapture settings.\n[ACTION: CONFIGURE_SERVICE]";
         let ui = parse_assistant_ui(text);
         match ui {
             Some(AssistantUiPayload::Spa(card)) => {
-                assert_eq!(card.action.label, "OPENCLAW_SECURE_CAPTURE");
-                // Legacy markers always default to RunStep
+                assert_eq!(card.action.label, "CONFIGURE_SERVICE");
                 assert_eq!(card.action.action_type, AssistantActionType::RunStep);
             }
             _ => panic!("expected spa ui from legacy marker, got {:?}", ui),

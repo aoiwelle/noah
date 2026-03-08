@@ -176,10 +176,10 @@ fn all_json_messages_have_valid_kind() {
 
 #[test]
 fn old_action_types_handled_gracefully() {
-    // These are action types from old sessions that our parser must handle
+    // Unknown action types from old sessions must still parse as valid spa
     let old_types = [
-        "OPEN_SECURE_FORM",
-        "OPENCLAW_SECURE_CAPTURE",
+        "UNKNOWN_TYPE",
+        "CUSTOM_FORM",
     ];
 
     for old_type in &old_types {
