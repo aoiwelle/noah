@@ -771,8 +771,8 @@ function MessageBubble({ message }: { message: Message }) {
 
   return (
     <div className="group animate-fade-in">
-      <div className="text-base text-text-primary leading-relaxed whitespace-pre-wrap break-words">
-        {message.content}
+      <div className="text-base text-text-primary leading-relaxed">
+        <MarkdownSummary text={message.content} />
       </div>
 
       {showToolCalls && message.toolCalls && message.toolCalls.length > 0 && (
