@@ -197,6 +197,39 @@ const BUILTIN_PLAYBOOKS: &[(&str, &str)] = &[
     ),
 ];
 
+/// Folder-based playbooks: (folder/filename, content).
+/// These are written to `playbooks/<folder>/<filename>` at bootstrap.
+const BUILTIN_FOLDER_PLAYBOOKS: &[(&str, &str)] = &[
+    (
+        "setup-nanoclaw/playbook.md",
+        include_str!("../playbooks/setup-nanoclaw/playbook.md"),
+    ),
+    (
+        "setup-nanoclaw/install-node.md",
+        include_str!("../playbooks/setup-nanoclaw/install-node.md"),
+    ),
+    (
+        "setup-nanoclaw/add-telegram.md",
+        include_str!("../playbooks/setup-nanoclaw/add-telegram.md"),
+    ),
+    (
+        "setup-nanoclaw/add-gmail.md",
+        include_str!("../playbooks/setup-nanoclaw/add-gmail.md"),
+    ),
+    (
+        "setup-nanoclaw/add-voice.md",
+        include_str!("../playbooks/setup-nanoclaw/add-voice.md"),
+    ),
+    (
+        "setup-nanoclaw/add-parallel.md",
+        include_str!("../playbooks/setup-nanoclaw/add-parallel.md"),
+    ),
+    (
+        "setup-nanoclaw/add-x.md",
+        include_str!("../playbooks/setup-nanoclaw/add-x.md"),
+    ),
+];
+
 // ── Frontmatter parser ─────────────────────────────────────────────────
 
 /// Parse YAML frontmatter from a playbook markdown string.
@@ -300,17 +333,56 @@ impl PlaybookRegistry {
             }
         }
 
+        // Bootstrap folder-based playbooks.
+        for (rel_path, content) in BUILTIN_FOLDER_PLAYBOOKS {
+            let dest = playbooks_dir.join(rel_path);
+            // Create parent directories.
+            if let Some(parent) = dest.parent() {
+                std::fs::create_dir_all(parent)?;
+            }
+
+            let is_user_owned = dest.exists() && std::fs::read_to_string(&dest)
+                .ok()
+                .and_then(|c| parse_frontmatter(&c))
+                .map(|m| m.playbook_type == "user")
+                .unwrap_or(false);
+            if is_user_owned { continue; }
+
+            let matches_platform = parse_frontmatter(content)
+                .map(|m| m.platform == "all" || m.platform == platform)
+                .unwrap_or(true);
+
+            if matches_platform {
+                std::fs::write(&dest, content)?;
+            } else if dest.exists() {
+                let _ = std::fs::remove_file(&dest);
+            }
+        }
+
         // Scan directory for all .md files and parse frontmatter.
         // Only include playbooks matching current platform or "all".
+        // Scans both top-level files and playbook.md inside subdirectories.
         let mut metas = Vec::new();
         let entries = std::fs::read_dir(&playbooks_dir)?;
         for entry in entries.flatten() {
             let path = entry.path();
-            if path.extension().is_some_and(|ext| ext == "md") {
+            if path.is_file() && path.extension().is_some_and(|ext| ext == "md") {
                 if let Ok(content) = std::fs::read_to_string(&path) {
                     if let Some(meta) = parse_frontmatter(&content) {
                         if meta.platform == "all" || meta.platform == platform {
                             metas.push(meta);
+                        }
+                    }
+                }
+            } else if path.is_dir() {
+                // Check for playbook.md inside subdirectory (folder-based playbook).
+                let main_file = path.join("playbook.md");
+                if main_file.exists() {
+                    if let Ok(content) = std::fs::read_to_string(&main_file) {
+                        if let Some(meta) = parse_frontmatter(&content) {
+                            if meta.platform == "all" || meta.platform == platform {
+                                metas.push(meta);
+                            }
                         }
                     }
                 }
@@ -326,9 +398,12 @@ impl PlaybookRegistry {
         })
     }
 
-    /// Read a playbook by name or filename stem, merging system + user tracks when both exist.
+    /// Read a playbook by name or path.
     ///
-    /// Matching: frontmatter `name:` field first, then filename stem for user-written entries.
+    /// Supports:
+    /// - Simple names: `"network-diagnostics"` → looks up flat files
+    /// - Folder playbooks: `"setup-nanoclaw"` → reads `setup-nanoclaw/playbook.md`
+    /// - Sub-modules: `"setup-nanoclaw/add-telegram"` → reads `setup-nanoclaw/add-telegram.md`
     ///
     /// If both a `type: system` and a `type: user` version match the same name, both are
     /// returned concatenated with origin/date annotations so the LLM can draw from both.
@@ -341,10 +416,46 @@ impl PlaybookRegistry {
 
         let mut matches: Vec<Match> = Vec::new();
 
+        // First: check if name contains "/" — it's a path-based lookup.
+        if name.contains('/') {
+            // Try direct path: playbooks/<name>.md
+            let direct = self.playbooks_dir.join(format!("{}.md", name));
+            if direct.exists() {
+                if let Ok(content) = std::fs::read_to_string(&direct) {
+                    return Ok(content);
+                }
+            }
+            // Try as folder: playbooks/<name>/playbook.md
+            let folder = self.playbooks_dir.join(name).join("playbook.md");
+            if folder.exists() {
+                if let Ok(content) = std::fs::read_to_string(&folder) {
+                    return Ok(content);
+                }
+            }
+            return Err(anyhow::anyhow!(
+                "Playbook module '{}' not found. Check the available modules in the parent playbook.",
+                name
+            ));
+        }
+
+        // Check if it's a folder playbook: playbooks/<name>/playbook.md
+        let folder_main = self.playbooks_dir.join(name).join("playbook.md");
+        if folder_main.exists() {
+            if let Ok(content) = std::fs::read_to_string(&folder_main) {
+                let meta = parse_frontmatter(&content);
+                let playbook_type = meta.as_ref()
+                    .map(|m| m.playbook_type.clone())
+                    .unwrap_or_else(|| "user".to_string());
+                let date = meta.and_then(|m| m.last_reviewed);
+                matches.push(Match { content, playbook_type, date });
+            }
+        }
+
+        // Scan flat files for name match.
         let entries = std::fs::read_dir(&self.playbooks_dir)?;
         for entry in entries.flatten() {
             let path = entry.path();
-            if !path.extension().is_some_and(|ext| ext == "md") {
+            if !path.is_file() || !path.extension().is_some_and(|ext| ext == "md") {
                 continue;
             }
             let Ok(content) = std::fs::read_to_string(&path) else { continue };
@@ -409,7 +520,7 @@ impl Tool for ActivatePlaybookTool {
     }
 
     fn description(&self) -> &str {
-        "Load a diagnostic playbook by name. Returns the full step-by-step protocol."
+        "Load a playbook by name. Returns the full step-by-step protocol. Use 'folder/module' to load a sub-module (e.g. 'setup-nanoclaw/add-telegram')."
     }
 
     fn input_schema(&self) -> Value {
@@ -418,7 +529,7 @@ impl Tool for ActivatePlaybookTool {
             "properties": {
                 "name": {
                     "type": "string",
-                    "description": "The playbook name (e.g. 'network-diagnostics')"
+                    "description": "The playbook name (e.g. 'network-diagnostics') or path for sub-modules (e.g. 'setup-nanoclaw/add-telegram')"
                 }
             },
             "required": ["name"]
