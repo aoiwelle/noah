@@ -1090,7 +1090,7 @@ function formatActivityEntry(evt: DebugLogPayload): ActivityEntry | null {
   }
 }
 
-function ThinkingIndicator({ hasPlaybook }: { hasPlaybook: boolean }) {
+function ThinkingIndicator() {
   const [status, setStatus] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState(0);
   const startRef = useRef(Date.now());
@@ -1152,7 +1152,7 @@ function ThinkingIndicator({ hasPlaybook }: { hasPlaybook: boolean }) {
             )}
           </span>
         )}
-        {hasPlaybook && activity.length > 0 && (
+        {activity.length > 0 && (
           <button
             onClick={() => setExpanded(!expanded)}
             className="ml-auto text-xs text-text-muted hover:text-text-secondary cursor-pointer"
@@ -1414,7 +1414,7 @@ export function ChatPanel() {
                   />
                 ));
               })()}
-              {isProcessing && <ThinkingIndicator hasPlaybook={messages.some(m => m.assistantUi && "progress" in m.assistantUi && m.assistantUi.progress)} />}
+              {isProcessing && <ThinkingIndicator />}
             </div>
             <div className="sticky bottom-0 pt-6 pb-4 bg-gradient-to-t from-bg-primary from-90% to-transparent">
               {inputCard}
