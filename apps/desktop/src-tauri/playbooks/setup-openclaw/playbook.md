@@ -85,8 +85,11 @@ Ask which platform the user uses — common choices by region:
 - **Chinese users**: Feishu (飞书) is most common for teams/work
 - **International**: WhatsApp or Telegram
 
-**Feishu (飞书)**: Activate `setup-openclaw/add-feishu` for guided setup.
-Requires creating an app in the Feishu developer console.
+**Feishu (飞书)**: Two options (mutually exclusive):
+- **Built-in plugin** (simpler, bot identity): activate `setup-openclaw/add-feishu`
+- **Official plugin** (user identity, documents/calendar/tasks): activate `setup-openclaw/add-feishu-official`
+If unsure, ask the user if they need the bot to operate Feishu documents,
+calendar, or tasks. If yes → official plugin. If just chat → built-in.
 
 **WhatsApp**:
 ```
@@ -134,7 +137,8 @@ After the core setup, the user can add optional features:
 
 - **setup-openclaw/configure** — Edit OpenClaw configuration (models, channels,
   sessions, cron jobs, etc.)
-- **setup-openclaw/add-feishu** — Add Feishu (飞书) or Lark as a channel
+- **setup-openclaw/add-feishu** — Add Feishu (飞书) channel (built-in plugin, bot identity)
+- **setup-openclaw/add-feishu-official** — Add Feishu official plugin (user identity, documents/calendar/tasks)
 - **setup-openclaw/add-telegram** — Add Telegram as a messaging channel
 - **setup-openclaw/add-whatsapp** — Add or reconfigure WhatsApp
 - **setup-openclaw/china-models** — Set up Chinese model providers
