@@ -4,8 +4,10 @@ import { useSessionStore } from "../stores/sessionStore";
 import { useChatStore } from "../stores/chatStore";
 import * as commands from "../lib/tauri-commands";
 import type { ApprovalRequest } from "../lib/tauri-commands";
+import { useLocale } from "../i18n";
 
 export function ActionApproval() {
+  const { t } = useLocale();
   const pendingApproval = useSessionStore((s) => s.pendingApproval);
   const setPendingApproval = useSessionStore((s) => s.setPendingApproval);
   const addMessage = useChatStore((s) => s.addMessage);
@@ -66,7 +68,7 @@ export function ActionApproval() {
 
   if (!pendingApproval) return null;
 
-  const reason = pendingApproval.reason || "Noah needs your OK to continue.";
+  const reason = pendingApproval.reason || t("approval.defaultReason");
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-bg-overlay backdrop-blur-sm animate-fade-in">
@@ -92,7 +94,7 @@ export function ActionApproval() {
               </svg>
             </div>
             <h2 className="text-sm font-semibold text-text-primary">
-              Can I do this?
+              {t("approval.title")}
             </h2>
           </div>
         </div>
@@ -110,13 +112,13 @@ export function ActionApproval() {
             onClick={handleDeny}
             className="px-5 py-2 rounded-lg text-sm text-text-secondary bg-bg-tertiary hover:bg-bg-tertiary/80 transition-colors cursor-pointer"
           >
-            No thanks
+            {t("approval.deny")}
           </button>
           <button
             onClick={handleApprove}
             className="px-5 py-2 rounded-lg text-sm text-white bg-accent-green hover:bg-accent-green/80 transition-colors cursor-pointer"
           >
-            Go ahead
+            {t("approval.approve")}
           </button>
         </div>
       </div>

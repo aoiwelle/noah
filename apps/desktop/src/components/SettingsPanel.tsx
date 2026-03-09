@@ -3,6 +3,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { useSessionStore } from "../stores/sessionStore";
 import { useTheme, type ThemePreference } from "../hooks/useTheme";
 import * as commands from "../lib/tauri-commands";
+import { useLocale, type LocalePreference } from "../i18n";
 
 export function SettingsPanel() {
   const settingsOpen = useSessionStore((s) => s.settingsOpen);
@@ -45,6 +46,7 @@ export function SettingsPanel() {
   }, [proactiveEnabled]);
 
   const { preference: themePref, setTheme } = useTheme();
+  const { t, preference: localePref, setLocale } = useLocale();
 
   const [reportingBug, setReportingBug] = useState(false);
 
@@ -88,9 +90,7 @@ export function SettingsPanel() {
     const key = apiKey.trim();
     if (!key) return;
     if (!key.startsWith("sk-ant-")) {
-      setError(
-        "That doesn't look like an Anthropic API key. It should start with sk-ant-",
-      );
+      setError(t("settings.errorApiKeyInvalid"));
       return;
     }
 
@@ -125,7 +125,7 @@ export function SettingsPanel() {
       <div className="fixed top-0 right-0 bottom-0 z-40 w-80 bg-bg-secondary border-l border-border-primary shadow-2xl flex flex-col animate-slide-in-right">
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-border-primary">
-          <h2 className="text-sm font-semibold text-text-primary">Settings</h2>
+          <h2 className="text-sm font-semibold text-text-primary">{t("settings.title")}</h2>
           <button
             onClick={() => setSettingsOpen(false)}
             className="w-7 h-7 rounded-md flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-bg-tertiary transition-colors cursor-pointer"
@@ -152,15 +152,15 @@ export function SettingsPanel() {
           {/* Auth */}
           <section>
             <h3 className="text-xs font-semibold text-text-primary uppercase tracking-wider mb-2">
-              {authMode === "proxy" ? "Connection" : "API Key"}
+              {authMode === "proxy" ? t("settings.connection") : t("settings.apiKey")}
             </h3>
             {authMode === "proxy" ? (
               <>
                 <p className="text-[11px] text-text-muted mb-2">
-                  Connected via Noah Beta (invite code).
+                  {t("settings.connectedViaProxy")}
                 </p>
                 <p className="text-[11px] text-text-muted mb-2">
-                  Want to use your own Anthropic API key instead?
+                  {t("settings.switchPrompt")}
                 </p>
                 <input
                   type="password"
@@ -181,16 +181,16 @@ export function SettingsPanel() {
                   className="mt-2 w-full py-1.5 rounded-lg bg-accent-green text-white text-xs font-medium hover:bg-accent-green/80 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {saving
-                    ? "Saving..."
+                    ? t("settings.saving")
                     : saved
-                      ? "Saved!"
-                      : "Switch to Own API Key"}
+                      ? t("settings.saved")
+                      : t("settings.switchToOwnKey")}
                 </button>
               </>
             ) : (
               <>
                 <p className="text-[11px] text-text-muted mb-2">
-                  Enter a new Anthropic API key to replace the current one.
+                  {t("settings.replaceKeyPrompt")}
                 </p>
                 <input
                   type="password"
@@ -210,7 +210,7 @@ export function SettingsPanel() {
                   disabled={!apiKey.trim() || saving}
                   className="mt-2 w-full py-1.5 rounded-lg bg-accent-green text-white text-xs font-medium hover:bg-accent-green/80 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {saving ? "Saving..." : saved ? "Saved!" : "Update API Key"}
+                  {saving ? t("settings.saving") : saved ? t("settings.saved") : t("settings.updateApiKey")}
                 </button>
               </>
             )}
@@ -219,16 +219,15 @@ export function SettingsPanel() {
           {/* Proactive Suggestions */}
           <section>
             <h3 className="text-xs font-semibold text-text-primary uppercase tracking-wider mb-2">
-              Proactive Suggestions
+              {t("settings.proactiveSuggestions")}
             </h3>
             <div className="flex items-center justify-between">
               <div className="flex-1 min-w-0 mr-3">
                 <p className="text-xs text-text-secondary">
-                  Notify me of potential issues
+                  {t("settings.notifyIssues")}
                 </p>
                 <p className="text-[10px] text-text-muted mt-0.5">
-                  Noah will periodically check your system and alert you if
-                  something needs attention. At most once per day.
+                  {t("settings.proactiveDesc")}
                 </p>
               </div>
               <button
@@ -249,7 +248,7 @@ export function SettingsPanel() {
           {/* Appearance */}
           <section>
             <h3 className="text-xs font-semibold text-text-primary uppercase tracking-wider mb-2">
-              Appearance
+              {t("settings.appearance")}
             </h3>
             <div className="flex rounded-lg border border-border-primary overflow-hidden">
               {(["system", "light", "dark"] as ThemePreference[]).map((opt) => (
@@ -262,23 +261,52 @@ export function SettingsPanel() {
                       : "text-text-secondary hover:text-text-primary hover:bg-bg-tertiary/50"
                   }`}
                 >
-                  {opt === "system" ? "System" : opt === "light" ? "Light" : "Dark"}
+                  {opt === "system" ? t("settings.system") : opt === "light" ? t("settings.light") : t("settings.dark")}
                 </button>
               ))}
             </div>
             <p className="text-[10px] text-text-muted mt-1.5">
               {themePref === "system"
-                ? "Follows your operating system setting."
+                ? t("settings.followsOS")
                 : themePref === "light"
-                  ? "Always use light mode."
-                  : "Always use dark mode."}
+                  ? t("settings.alwaysLight")
+                  : t("settings.alwaysDark")}
+            </p>
+          </section>
+
+          {/* Language */}
+          <section>
+            <h3 className="text-xs font-semibold text-text-primary uppercase tracking-wider mb-2">
+              {t("settings.language")}
+            </h3>
+            <div className="flex rounded-lg border border-border-primary overflow-hidden">
+              {(["auto", "en", "zh"] as LocalePreference[]).map((opt) => (
+                <button
+                  key={opt}
+                  onClick={() => setLocale(opt)}
+                  className={`flex-1 py-1.5 text-xs font-medium transition-colors cursor-pointer ${
+                    localePref === opt
+                      ? "bg-accent-blue/15 text-accent-blue"
+                      : "text-text-secondary hover:text-text-primary hover:bg-bg-tertiary/50"
+                  }`}
+                >
+                  {opt === "auto" ? t("settings.auto") : opt === "en" ? t("settings.langEnglish") : t("settings.langChinese")}
+                </button>
+              ))}
+            </div>
+            <p className="text-[10px] text-text-muted mt-1.5">
+              {localePref === "auto"
+                ? t("settings.langAutoDesc")
+                : localePref === "en"
+                  ? t("settings.langEnDesc")
+                  : t("settings.langZhDesc")}
             </p>
           </section>
 
           {/* Links */}
           <section>
             <h3 className="text-xs font-semibold text-text-primary uppercase tracking-wider mb-2">
-              Help & Feedback
+              {t("settings.helpFeedback")}
             </h3>
             <div className="space-y-1.5">
               <button
@@ -308,7 +336,7 @@ export function SettingsPanel() {
                   />
                   <circle cx="7" cy="9.5" r="0.5" fill="currentColor" />
                 </svg>
-                {reportingBug ? "Gathering info..." : "Report a Problem"}
+                {reportingBug ? t("settings.gatheringInfo") : t("settings.reportProblem")}
               </button>
               <a
                 href="https://platform.claude.com/settings/keys"
@@ -331,7 +359,7 @@ export function SettingsPanel() {
                     strokeLinejoin="round"
                   />
                 </svg>
-                Anthropic Console
+                {t("settings.anthropicConsole")}
               </a>
             </div>
           </section>
@@ -340,7 +368,7 @@ export function SettingsPanel() {
         {/* Footer */}
         <div className="px-4 py-3 border-t border-border-primary">
           <p className="text-[10px] text-text-muted text-center">
-            Noah v{version || "..."}
+            {t("settings.version", { version: version || "..." })}
           </p>
         </div>
       </div>

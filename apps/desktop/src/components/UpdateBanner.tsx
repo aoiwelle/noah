@@ -1,8 +1,10 @@
 import { useState, useEffect } from "react";
 import { check } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
+import { useLocale } from "../i18n";
 
 export function UpdateBanner() {
+  const { t } = useLocale();
   const [updateVersion, setUpdateVersion] = useState<string | null>(null);
   const [status, setStatus] = useState<"idle" | "downloading" | "installing" | "done" | "error">("idle");
   const [dismissed, setDismissed] = useState(false);
@@ -58,18 +60,17 @@ export function UpdateBanner() {
   };
 
   const buttonLabel = {
-    idle: "Update now",
-    downloading: "Downloading...",
-    installing: "Restarting...",
-    done: "Restarting...",
-    error: "Update failed",
+    idle: t("update.updateNow"),
+    downloading: t("update.downloading"),
+    installing: t("update.restarting"),
+    done: t("update.restarting"),
+    error: t("update.updateFailed"),
   }[status];
 
   return (
     <div className="flex items-center justify-between gap-3 px-4 py-2 bg-accent-blue/10 border-b border-accent-blue/20">
       <p className="text-xs text-text-primary">
-        <span className="font-medium">Noah v{updateVersion}</span> is
-        available.
+        {t("update.available", { version: updateVersion })}
       </p>
       <div className="flex items-center gap-2">
         {status === "idle" && (
@@ -77,7 +78,7 @@ export function UpdateBanner() {
             onClick={() => setDismissed(true)}
             className="text-[10px] text-text-muted hover:text-text-primary transition-colors cursor-pointer"
           >
-            Later
+            {t("update.later")}
           </button>
         )}
         <button

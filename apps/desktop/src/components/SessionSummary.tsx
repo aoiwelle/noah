@@ -1,8 +1,10 @@
 import { useState, useEffect } from "react";
 import * as commands from "../lib/tauri-commands";
 import { useSessionStore } from "../stores/sessionStore";
+import { useLocale } from "../i18n";
 
 export function SessionSummary() {
+  const { t } = useLocale();
   const sessionId = useSessionStore((s) => s.sessionId);
   const isActive = useSessionStore((s) => s.isActive);
   const changes = useSessionStore((s) => s.changes);
@@ -37,17 +39,17 @@ export function SessionSummary() {
       <div className="rounded-xl border border-accent-green/30 bg-accent-green/5 px-4 py-3">
         <div className="flex items-start justify-between gap-2 mb-2">
           <h3 className="text-xs font-semibold text-accent-green uppercase tracking-wider">
-            Session Summary
+            {t("sessionSummary.title")}
           </h3>
           <button
             onClick={() => setDismissed(true)}
             className="text-text-muted hover:text-text-primary text-xs cursor-pointer"
           >
-            Dismiss
+            {t("sessionSummary.dismiss")}
           </button>
         </div>
         {loading ? (
-          <p className="text-xs text-text-muted">Generating summary...</p>
+          <p className="text-xs text-text-muted">{t("sessionSummary.generating")}</p>
         ) : (
           <div className="text-xs text-text-secondary whitespace-pre-wrap leading-relaxed">
             {summary}
@@ -55,9 +57,7 @@ export function SessionSummary() {
         )}
         {changes.length > 0 && (
           <p className="text-[10px] text-text-muted mt-2">
-            {changes.filter((c) => !c.undone).length} change
-            {changes.filter((c) => !c.undone).length !== 1 ? "s" : ""} made
-            during this session
+            {t("sessionSummary.changesMade", { count: changes.filter((c) => !c.undone).length })}
           </p>
         )}
       </div>

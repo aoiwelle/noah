@@ -1,25 +1,9 @@
 import { useState, useCallback, useMemo } from "react";
 import * as commands from "../lib/tauri-commands";
 import { NoahIcon } from "./NoahIcon";
+import { useLocale } from "../i18n";
 
 const PROXY_URL = "https://noah-proxy.fly.dev";
-
-const TAGLINES = [
-  "Your personal IT help desk — describe a problem, get it fixed.",
-  "AI-powered computer repair, right on your desktop.",
-  "Describe your problem. Noah fixes it.",
-  "Like having a tech-savvy friend who actually picks up the phone.",
-  "Computer acting up? Tell Noah what's wrong.",
-  "No hold music. No ticket numbers. Just fixes.",
-  "Tech support that doesn't ask you to restart first.",
-  "Your computer problems, solved in plain English.",
-  "The IT guy who never sighs at your question.",
-  "Tell Noah what's broken. Go grab a coffee.",
-  "Finally, tech support that doesn't judge you.",
-  "Fixes your computer. Doesn't judge your browser tabs.",
-  "Like IT support, but without the attitude.",
-  "Help is here. No jargon required.",
-];
 
 interface SetupScreenProps {
   onComplete: () => void;
@@ -28,12 +12,14 @@ interface SetupScreenProps {
 type AuthPath = "invite" | "api_key";
 
 export function SetupScreen({ onComplete }: SetupScreenProps) {
+  const { t, tArray } = useLocale();
   const [authPath, setAuthPath] = useState<AuthPath>("invite");
   const [inviteCode, setInviteCode] = useState("");
   const [apiKey, setApiKey] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const tagline = useMemo(() => TAGLINES[Math.floor(Math.random() * TAGLINES.length)], []);
+  const taglines = tArray("setup.taglines");
+  const tagline = useMemo(() => taglines[Math.floor(Math.random() * taglines.length)], [taglines]);
 
   const handleSave = useCallback(async () => {
     setError(null);
@@ -43,20 +29,18 @@ export function SetupScreen({ onComplete }: SetupScreenProps) {
       if (authPath === "invite") {
         const code = inviteCode.trim().toUpperCase();
         if (!code) {
-          setError("Please enter your invite code.");
+          setError(t("setup.errorInviteEmpty"));
           return;
         }
         await commands.redeemInviteCode(PROXY_URL, code);
       } else {
         const key = apiKey.trim();
         if (!key) {
-          setError("Please paste your API key.");
+          setError(t("setup.errorApiKeyEmpty"));
           return;
         }
         if (!key.startsWith("sk-ant-")) {
-          setError(
-            "That doesn't look like an Anthropic API key. It should start with sk-ant-",
-          );
+          setError(t("setup.errorApiKeyInvalid"));
           return;
         }
         await commands.setApiKey(key);
@@ -78,7 +62,7 @@ export function SetupScreen({ onComplete }: SetupScreenProps) {
         <div className="flex flex-col items-center mb-8">
           <NoahIcon className="w-16 h-16 rounded-2xl mb-4" alt="Noah" />
           <h1 className="text-xl font-semibold text-text-primary">
-            Welcome to Noah
+            {t("setup.welcomeTitle")}
           </h1>
           <p className="text-sm text-text-secondary mt-2 text-center leading-relaxed">
             {tagline}
@@ -113,10 +97,10 @@ export function SetupScreen({ onComplete }: SetupScreenProps) {
               />
               <div>
                 <div className="text-sm font-medium text-text-primary">
-                  I have an invite code
+                  {t("setup.inviteOption")}
                 </div>
                 <div className="text-[11px] text-text-muted">
-                  From a friend or the Noah team
+                  {t("setup.inviteOptionDesc")}
                 </div>
               </div>
             </label>
@@ -146,10 +130,10 @@ export function SetupScreen({ onComplete }: SetupScreenProps) {
               />
               <div>
                 <div className="text-sm font-medium text-text-primary">
-                  I have an Anthropic API key
+                  {t("setup.apiKeyOption")}
                 </div>
                 <div className="text-[11px] text-text-muted">
-                  Use your own key directly
+                  {t("setup.apiKeyOptionDesc")}
                 </div>
               </div>
             </label>
@@ -165,7 +149,7 @@ export function SetupScreen({ onComplete }: SetupScreenProps) {
                 onKeyDown={(e) => {
                   if (e.key === "Enter") handleSave();
                 }}
-                placeholder="NOAH-XXXX-XXXX"
+                placeholder={t("setup.invitePlaceholder")}
                 className="w-full px-4 py-2.5 rounded-xl bg-bg-input border border-border-primary text-sm text-text-primary placeholder-text-muted outline-none focus:border-border-focus transition-colors tracking-widest font-mono"
                 autoFocus
               />
@@ -177,7 +161,7 @@ export function SetupScreen({ onComplete }: SetupScreenProps) {
                 onKeyDown={(e) => {
                   if (e.key === "Enter") handleSave();
                 }}
-                placeholder="sk-ant-..."
+                placeholder={t("setup.apiKeyPlaceholder")}
                 className="w-full px-4 py-2.5 rounded-xl bg-bg-input border border-border-primary text-sm text-text-primary placeholder-text-muted outline-none focus:border-border-focus transition-colors"
                 autoFocus
               />
@@ -194,27 +178,27 @@ export function SetupScreen({ onComplete }: SetupScreenProps) {
           >
             {saving
               ? authPath === "invite"
-                ? "Connecting..."
-                : "Saving..."
+                ? t("setup.connecting")
+                : t("setup.saving")
               : authPath === "invite"
-                ? "Connect"
-                : "Save & Start"}
+                ? t("setup.connect")
+                : t("setup.saveAndStart")}
           </button>
 
           {authPath === "api_key" && (
             <p className="text-[11px] text-text-muted text-center leading-relaxed">
-              Don't have a key?{" "}
+              {t("setup.noKey")}{" "}
               <a
                 href="https://platform.claude.com/settings/keys"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-accent-green hover:underline"
               >
-                Get one from Anthropic
+                {t("setup.getFromAnthropic")}
               </a>
               .
               <br />
-              Your key is saved locally and never shared.
+              {t("setup.keyLocalOnly")}
             </p>
           )}
         </div>

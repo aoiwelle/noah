@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo, type ReactElement } from "re
 import { useSessionStore } from "../stores/sessionStore";
 import * as commands from "../lib/tauri-commands";
 import type { KnowledgeEntry } from "../lib/tauri-commands";
+import { useLocale } from "../i18n";
 
 type KnowledgeTab = "builtin" | "yours" | "learned";
 
@@ -136,6 +137,7 @@ function KnowledgeCard({
   onSelect: (entry: KnowledgeEntry) => void;
   onDelete: (path: string) => void;
 }) {
+  const { t } = useLocale();
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   return (
@@ -157,13 +159,13 @@ function KnowledgeCard({
               }}
               className="text-accent-red font-medium cursor-pointer"
             >
-              Confirm
+              {t("knowledgePanel.confirm")}
             </button>
             <button
               onClick={() => setConfirmDelete(false)}
               className="text-text-muted ml-2 cursor-pointer"
             >
-              Cancel
+              {t("knowledgePanel.cancel")}
             </button>
           </>
         ) : (
@@ -171,7 +173,7 @@ function KnowledgeCard({
             onClick={() => setConfirmDelete(true)}
             className="text-text-muted hover:text-accent-red transition-colors cursor-pointer"
           >
-            Delete
+            {t("knowledgePanel.delete")}
           </button>
         )}
       </div>
@@ -180,6 +182,7 @@ function KnowledgeCard({
 }
 
 export function KnowledgeView() {
+  const { t } = useLocale();
   const activeView = useSessionStore((s) => s.activeView);
   const [entries, setEntries] = useState<KnowledgeEntry[]>([]);
   const [selectedEntry, setSelectedEntry] = useState<KnowledgeEntry | null>(null);
@@ -254,7 +257,7 @@ export function KnowledgeView() {
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
                 <path d="M9 3L5 7L9 11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
-              Back to knowledge
+              {t("knowledgePanel.backToKnowledge")}
             </button>
             <p className="text-xs text-text-muted font-mono mb-4">{selectedEntry.path}</p>
             {selectedEntry.category === "playbooks" ? (
@@ -272,28 +275,28 @@ export function KnowledgeView() {
               <path d="M20 4V10H26" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
               <path d="M10 16H22M10 20H22M10 24H18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
             </svg>
-            <p className="text-base text-text-secondary mb-1">No knowledge yet</p>
+            <p className="text-base text-text-secondary mb-1">{t("knowledgePanel.noKnowledge")}</p>
             <p className="text-sm text-text-muted text-center max-w-xs">
-              Noah hasn't learned anything about your system yet. Knowledge will build up as you use the app.
+              {t("knowledgePanel.noKnowledgeDesc")}
             </p>
           </div>
         ) : (
           <div className="max-w-6xl w-full mx-auto py-4 px-6">
             <div className="flex items-center justify-between pb-4">
               <div>
-                <h1 className="text-2xl font-semibold text-text-primary">Knowledge</h1>
-                <p className="text-sm text-text-muted mt-1">{entries.length} file{entries.length !== 1 ? "s" : ""}</p>
+                <h1 className="text-2xl font-semibold text-text-primary">{t("knowledgePanel.title")}</h1>
+                <p className="text-sm text-text-muted mt-1">{t("knowledgePanel.fileCount", { count: entries.length })}</p>
               </div>
               <button className="px-4 py-2 rounded-lg border border-border-primary text-sm text-text-primary hover:bg-bg-tertiary/40 transition-colors">
-                + New Knowledge
+                {t("knowledgePanel.newKnowledge")}
               </button>
             </div>
 
             <div className="flex items-center gap-2 border-b border-border-primary mb-4">
               {[
-                { key: "builtin", label: "Builtin" },
-                { key: "yours", label: "Your Playbooks" },
-                { key: "learned", label: "Noah Learned" },
+                { key: "builtin", label: t("knowledgePanel.builtin") },
+                { key: "yours", label: t("knowledgePanel.yourPlaybooks") },
+                { key: "learned", label: t("knowledgePanel.noahLearned") },
               ].map((tab) => {
                 const key = tab.key as KnowledgeTab;
                 const active = key === activeTab;
@@ -314,7 +317,7 @@ export function KnowledgeView() {
             </div>
 
             {visibleEntries.length === 0 ? (
-              <p className="text-sm text-text-muted py-8">No entries in this tab yet.</p>
+              <p className="text-sm text-text-muted py-8">{t("knowledgePanel.noEntries")}</p>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 pb-4">
                 {visibleEntries.map((entry) => {

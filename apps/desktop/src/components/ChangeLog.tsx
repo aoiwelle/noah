@@ -2,8 +2,10 @@ import { useCallback } from "react";
 import { useSessionStore } from "../stores/sessionStore";
 import * as commands from "../lib/tauri-commands";
 import type { ChangeEntry } from "../lib/tauri-commands";
+import { useLocale } from "../i18n";
 
 function ChangeItem({ change }: { change: ChangeEntry }) {
+  const { t } = useLocale();
   const markChangeUndone = useSessionStore((s) => s.markChangeUndone);
 
   const handleUndo = useCallback(async () => {
@@ -49,7 +51,7 @@ function ChangeItem({ change }: { change: ChangeEntry }) {
         <button
           onClick={handleUndo}
           disabled={change.undone}
-          title={change.undone ? "Already undone" : "Undo this change"}
+          title={change.undone ? t("changeLog.tooltipUndone") : t("changeLog.tooltipUndo")}
           className={`
             flex-shrink-0 px-2 py-1 rounded-md text-[10px] font-medium
             transition-colors cursor-pointer
@@ -60,7 +62,7 @@ function ChangeItem({ change }: { change: ChangeEntry }) {
             }
           `}
         >
-          {change.undone ? "Undone" : "Undo"}
+          {change.undone ? t("changeLog.undone") : t("changeLog.undo")}
         </button>
       </div>
     </div>
@@ -68,6 +70,7 @@ function ChangeItem({ change }: { change: ChangeEntry }) {
 }
 
 export function ChangeLog() {
+  const { t } = useLocale();
   const changeLogOpen = useSessionStore((s) => s.changeLogOpen);
   const setChangeLogOpen = useSessionStore((s) => s.setChangeLogOpen);
   const changes = useSessionStore((s) => s.changes);
@@ -87,7 +90,7 @@ export function ChangeLog() {
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-border-primary">
           <h2 className="text-sm font-semibold text-text-primary">
-            Action Log
+            {t("changeLog.title")}
           </h2>
           <button
             onClick={() => setChangeLogOpen(false)}
@@ -130,9 +133,9 @@ export function ChangeLog() {
                 />
               </svg>
               <p className="text-xs text-center">
-                No actions taken yet.
+                {t("changeLog.emptyTitle")}
                 <br />
-                Actions will appear here as the assistant works.
+                {t("changeLog.emptySubtitle")}
               </p>
             </div>
           ) : (
@@ -149,9 +152,9 @@ export function ChangeLog() {
         {changes.length > 0 && (
           <div className="px-4 py-2.5 border-t border-border-primary">
             <p className="text-[10px] text-text-muted">
-              {changes.length} action{changes.length !== 1 ? "s" : ""} total
+              {t("changeLog.totalActions", { count: changes.length })}
               {" \u00B7 "}
-              {changes.filter((c) => c.undone).length} undone
+              {t("changeLog.totalUndone", { count: changes.filter((c) => c.undone).length })}
             </p>
           </div>
         )}

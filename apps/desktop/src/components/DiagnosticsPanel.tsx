@@ -3,6 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import { useSessionStore } from "../stores/sessionStore";
 import * as commands from "../lib/tauri-commands";
 import type { ScanJobRecord } from "../lib/tauri-commands";
+import { useLocale } from "../i18n";
 
 interface ScanProgressEvent {
   scan_type: string;
@@ -12,8 +13,8 @@ interface ScanProgressEvent {
   progress_detail: string;
 }
 
-const DISPLAY_NAMES: Record<string, string> = {
-  disk: "Disk Analysis",
+const DISPLAY_NAME_KEYS: Record<string, string> = {
+  disk: "diagnostics.diskAnalysis",
 };
 
 function formatRelativeTime(iso: string | null): string {
@@ -45,24 +46,14 @@ function statusColor(status: string): string {
   }
 }
 
-function statusLabel(status: string): string {
-  switch (status) {
-    case "running":
-      return "Running";
-    case "completed":
-      return "Complete";
-    case "failed":
-      return "Failed";
-    case "paused":
-      return "Paused";
-    case "queued":
-      return "Queued";
-    case "skipped":
-      return "Skipped";
-    default:
-      return status;
-  }
-}
+const STATUS_LABEL_KEYS: Record<string, string> = {
+  running: "diagnostics.running",
+  completed: "diagnostics.complete",
+  failed: "diagnostics.failed",
+  paused: "diagnostics.paused",
+  queued: "diagnostics.queued",
+  skipped: "diagnostics.skipped",
+};
 
 function ScanJobItem({
   job,
@@ -77,13 +68,14 @@ function ScanJobItem({
   onPause: (scanType: string) => void;
   onResume: (scanType: string) => void;
 }) {
+  const { t } = useLocale();
   const status = liveProgress?.status || job.status;
   const pct = liveProgress?.progress_pct ?? job.progress_pct;
   const detail = liveProgress?.progress_detail || job.progress_detail || "";
+  const displayNameKey = DISPLAY_NAME_KEYS[job.scan_type];
   const displayName =
     liveProgress?.display_name ||
-    DISPLAY_NAMES[job.scan_type] ||
-    job.scan_type;
+    (displayNameKey ? t(displayNameKey) : job.scan_type);
   const isRunning = status === "running";
   const isPaused = status === "paused";
 
@@ -95,7 +87,7 @@ function ScanJobItem({
             {displayName}
           </span>
           <span className={`text-xs font-medium ${statusColor(status)}`}>
-            {statusLabel(status)}
+            {STATUS_LABEL_KEYS[status] ? t(STATUS_LABEL_KEYS[status]) : status}
           </span>
         </div>
         <div className="flex items-center gap-2">
@@ -104,21 +96,21 @@ function ScanJobItem({
               onClick={() => onPause(job.scan_type)}
               className="text-xs px-2.5 py-1 rounded-md bg-bg-tertiary text-text-secondary hover:text-text-primary transition-colors cursor-pointer"
             >
-              Pause
+              {t("diagnostics.pause")}
             </button>
           ) : isPaused ? (
             <button
               onClick={() => onResume(job.scan_type)}
               className="text-xs px-2.5 py-1 rounded-md bg-bg-tertiary text-text-secondary hover:text-text-primary transition-colors cursor-pointer"
             >
-              Resume
+              {t("diagnostics.resume")}
             </button>
           ) : (
             <button
               onClick={() => onTrigger(job.scan_type)}
               className="text-xs px-2.5 py-1 rounded-md bg-bg-tertiary text-text-secondary hover:text-text-primary transition-colors cursor-pointer"
             >
-              Scan Now
+              {t("diagnostics.scanNow")}
             </button>
           )}
         </div>
@@ -151,6 +143,7 @@ function ScanJobItem({
 }
 
 export function DiagnosticsView() {
+  const { t } = useLocale();
   const activeView = useSessionStore((s) => s.activeView);
   const [jobs, setJobs] = useState<ScanJobRecord[]>([]);
   const [liveProgress, setLiveProgress] = useState<
@@ -201,10 +194,10 @@ export function DiagnosticsView() {
           ...prev,
           [scanType]: {
             scan_type: scanType,
-            display_name: DISPLAY_NAMES[scanType] || scanType,
+            display_name: DISPLAY_NAME_KEYS[scanType] ? t(DISPLAY_NAME_KEYS[scanType]) : scanType,
             status: "running",
             progress_pct: 0,
-            progress_detail: "Starting...",
+            progress_detail: t("diagnostics.starting"),
           },
         }));
       } catch (err) {
@@ -222,7 +215,7 @@ export function DiagnosticsView() {
         [scanType]: {
           ...(prev[scanType] || {
             scan_type: scanType,
-            display_name: DISPLAY_NAMES[scanType] || scanType,
+            display_name: DISPLAY_NAME_KEYS[scanType] ? t(DISPLAY_NAME_KEYS[scanType]) : scanType,
             progress_pct: 0,
             progress_detail: "",
           }),
@@ -242,7 +235,7 @@ export function DiagnosticsView() {
         [scanType]: {
           ...(prev[scanType] || {
             scan_type: scanType,
-            display_name: DISPLAY_NAMES[scanType] || scanType,
+            display_name: DISPLAY_NAME_KEYS[scanType] ? t(DISPLAY_NAME_KEYS[scanType]) : scanType,
             progress_pct: 0,
             progress_detail: "",
           }),
@@ -265,7 +258,7 @@ export function DiagnosticsView() {
           scan_type: st,
           status: "queued",
           progress_pct: 0,
-          progress_detail: "Waiting for first scan (starts automatically)",
+          progress_detail: t("diagnostics.waitingFirstScan"),
           budget_secs: null,
           started_at: null,
           updated_at: null,
@@ -287,11 +280,10 @@ export function DiagnosticsView() {
         <div className="max-w-3xl w-full mx-auto py-4 px-6">
           <div className="pb-4">
             <h1 className="text-2xl font-semibold text-text-primary">
-              Actions
+              {t("diagnostics.title")}
             </h1>
             <p className="text-sm text-text-muted mt-1">
-              Background scans and tasks Noah is working on.
-              Scans run quietly when your computer is idle.
+              {t("diagnostics.subtitle")}
             </p>
           </div>
 
@@ -310,9 +302,7 @@ export function DiagnosticsView() {
 
           <div className="mt-8 text-xs text-text-muted">
             <p>
-              Scan results are used by Noah to give faster, more accurate
-              advice when you ask about disk space, performance, or
-              system health. Data stays on your device.
+              {t("diagnostics.scanFooter")}
             </p>
           </div>
         </div>
