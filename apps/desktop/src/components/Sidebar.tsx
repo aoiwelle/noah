@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useSessionStore } from "../stores/sessionStore";
 import { useSession } from "../hooks/useSession";
 import { useLocale } from "../i18n";
@@ -51,86 +51,72 @@ function ContextMenu({
   onDelete: (sessionId: string) => void;
   t: (key: string) => string;
 }) {
-  const menuRef = useRef<HTMLDivElement>(null);
-
   useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setMenu(null);
-      }
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMenu(null);
     };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
   }, [setMenu]);
 
-  // Adjust position to stay on screen
-  const style: React.CSSProperties = {
-    position: "fixed",
-    left: menu.x,
-    top: menu.y,
-    zIndex: 9999,
-  };
-
   return (
-    <div ref={menuRef} style={style} className="w-44 bg-bg-secondary border border-border-primary rounded-lg shadow-2xl py-1">
-      {menu.session.resolved !== true && (
+    <>
+      {/* Transparent backdrop to catch outside clicks */}
+      <div className="fixed inset-0 z-[9998]" onClick={() => setMenu(null)} />
+      <div
+        style={{ position: "fixed", left: menu.x, top: menu.y, zIndex: 9999 }}
+        className="w-44 bg-bg-secondary border border-border-primary rounded-lg shadow-2xl py-1"
+      >
+        {menu.session.resolved !== true && (
+          <button
+            onClick={() => {
+              onResolveToggle(menu.session.id, true);
+              setMenu(null);
+            }}
+            className="w-full px-3 py-1.5 text-left text-xs text-text-secondary hover:bg-bg-tertiary transition-colors cursor-pointer"
+          >
+            {t("sidebar.markResolved")}
+          </button>
+        )}
         <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onResolveToggle(menu.session.id, true);
+          onClick={() => {
+            onExport(menu.session.id, menu.session.title || "session");
             setMenu(null);
           }}
           className="w-full px-3 py-1.5 text-left text-xs text-text-secondary hover:bg-bg-tertiary transition-colors cursor-pointer"
         >
-          {t("sidebar.markResolved")}
+          {t("sidebar.export")}
         </button>
-      )}
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          onExport(menu.session.id, menu.session.title || "session");
-          setMenu(null);
-        }}
-        className="w-full px-3 py-1.5 text-left text-xs text-text-secondary hover:bg-bg-tertiary transition-colors cursor-pointer"
-      >
-        {t("sidebar.export")}
-      </button>
-      <div className="border-t border-border-primary mt-1 pt-1">
-        {menu.confirmDelete ? (
-          <div className="flex items-center gap-2 px-3 py-1.5">
+        <div className="border-t border-border-primary mt-1 pt-1">
+          {menu.confirmDelete ? (
+            <div className="flex items-center gap-2 px-3 py-1.5">
+              <button
+                onClick={() => {
+                  onDelete(menu.session.id);
+                  setMenu(null);
+                }}
+                className="text-xs text-accent-red font-medium cursor-pointer hover:underline"
+              >
+                {t("sidebar.confirm")}
+              </button>
+              <button
+                onClick={() => setMenu({ ...menu, confirmDelete: false })}
+                className="text-xs text-text-muted cursor-pointer hover:underline"
+              >
+                {t("sidebar.cancel")}
+              </button>
+            </div>
+          ) : (
             <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onDelete(menu.session.id);
-                setMenu(null);
-              }}
-              className="text-xs text-accent-red font-medium cursor-pointer hover:underline"
+              onClick={() => setMenu({ ...menu, confirmDelete: true })}
+              className="w-full px-3 py-1.5 text-left text-xs text-accent-red hover:bg-bg-tertiary transition-colors cursor-pointer"
             >
-              {t("sidebar.confirm")}
+              {t("sidebar.delete")}
             </button>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setMenu({ ...menu, confirmDelete: false });
-              }}
-              className="text-xs text-text-muted cursor-pointer hover:underline"
-            >
-              {t("sidebar.cancel")}
-            </button>
-          </div>
-        ) : (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setMenu({ ...menu, confirmDelete: true });
-            }}
-            className="w-full px-3 py-1.5 text-left text-xs text-accent-red hover:bg-bg-tertiary transition-colors cursor-pointer"
-          >
-            {t("sidebar.delete")}
-          </button>
-        )}
+          )}
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 
