@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useSessionStore } from "../stores/sessionStore";
 import { useSession } from "../hooks/useSession";
 import { useLocale } from "../i18n";
@@ -47,6 +47,7 @@ interface ContextMenuState {
 function ContextMenu({
   menu,
   setMenu,
+  onRename,
   onResolveToggle,
   onExport,
   onDelete,
@@ -54,6 +55,7 @@ function ContextMenu({
 }: {
   menu: ContextMenuState;
   setMenu: (m: ContextMenuState | null) => void;
+  onRename: (sessionId: string) => void;
   onResolveToggle: (sessionId: string, resolved: boolean) => void;
   onExport: (sessionId: string, title: string) => void;
   onDelete: (sessionId: string) => void;
@@ -75,6 +77,15 @@ function ContextMenu({
         style={{ position: "fixed", left: menu.x, top: menu.y, zIndex: 9999 }}
         className="w-44 bg-bg-secondary border border-border-primary rounded-lg shadow-2xl py-1"
       >
+        <button
+          onClick={() => {
+            onRename(menu.session.id);
+            setMenu(null);
+          }}
+          className="w-full px-3 py-1.5 text-left text-xs text-text-secondary hover:bg-bg-tertiary transition-colors cursor-pointer"
+        >
+          {t("sidebar.rename")}
+        </button>
         {menu.session.resolved !== true && (
           <button
             onClick={() => {
@@ -131,18 +142,62 @@ function ContextMenu({
 function SessionItem({
   session,
   isActive,
+  isRenaming,
   onSelect,
   onContextMenu,
+  onRenameSubmit,
+  onRenameCancel,
   t,
   locale,
 }: {
   session: SessionRecord;
   isActive: boolean;
+  isRenaming: boolean;
   onSelect: (sessionId: string) => void;
   onContextMenu: (e: React.MouseEvent, session: SessionRecord) => void;
+  onRenameSubmit: (sessionId: string, title: string) => void;
+  onRenameCancel: () => void;
   t: (key: string, params?: Record<string, string | number>) => string;
   locale: string;
 }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [renameValue, setRenameValue] = useState(session.title || "");
+
+  useEffect(() => {
+    if (isRenaming && inputRef.current) {
+      setRenameValue(session.title || "");
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [isRenaming, session.title]);
+
+  if (isRenaming) {
+    return (
+      <div className="px-3 py-1.5 mx-2">
+        <input
+          ref={inputRef}
+          value={renameValue}
+          onChange={(e) => setRenameValue(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              const trimmed = renameValue.trim();
+              if (trimmed) onRenameSubmit(session.id, trimmed);
+              else onRenameCancel();
+            } else if (e.key === "Escape") {
+              onRenameCancel();
+            }
+          }}
+          onBlur={() => {
+            const trimmed = renameValue.trim();
+            if (trimmed) onRenameSubmit(session.id, trimmed);
+            else onRenameCancel();
+          }}
+          className="w-full text-sm bg-bg-primary border border-accent-blue rounded px-1.5 py-1 text-text-primary outline-none"
+        />
+      </div>
+    );
+  }
+
   return (
     <div
       role="button"
@@ -186,6 +241,7 @@ export function Sidebar({ session }: SidebarProps) {
   const setPastSessions = useSessionStore((s) => s.setPastSessions);
   const { switchToProblem } = useSession();
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+  const [renamingSessionId, setRenamingSessionId] = useState<string | null>(null);
 
   const loadSessions = useCallback(async () => {
     try {
@@ -265,6 +321,31 @@ export function Sidebar({ session }: SidebarProps) {
     },
     [pastSessions, setPastSessions],
   );
+
+  const handleRenameStart = useCallback((sessionId: string) => {
+    setRenamingSessionId(sessionId);
+  }, []);
+
+  const handleRenameSubmit = useCallback(
+    async (sessionId: string, title: string) => {
+      setRenamingSessionId(null);
+      try {
+        await commands.renameSession(sessionId, title);
+        setPastSessions(
+          pastSessions.map((s) =>
+            s.id === sessionId ? { ...s, title } : s,
+          ),
+        );
+      } catch (err) {
+        console.error("Failed to rename session:", err);
+      }
+    },
+    [pastSessions, setPastSessions],
+  );
+
+  const handleRenameCancel = useCallback(() => {
+    setRenamingSessionId(null);
+  }, []);
 
   const { t, locale } = useLocale();
 
@@ -352,8 +433,11 @@ export function Sidebar({ session }: SidebarProps) {
                 key={s.id}
                 session={s}
                 isActive={s.id === currentSessionId}
+                isRenaming={renamingSessionId === s.id}
                 onSelect={handleSelectSession}
                 onContextMenu={handleContextMenu}
+                onRenameSubmit={handleRenameSubmit}
+                onRenameCancel={handleRenameCancel}
                 t={t}
                 locale={locale}
               />
@@ -366,6 +450,7 @@ export function Sidebar({ session }: SidebarProps) {
         <ContextMenu
           menu={contextMenu}
           setMenu={setContextMenu}
+          onRename={handleRenameStart}
           onResolveToggle={handleResolveToggle}
           onExport={handleExport}
           onDelete={handleDelete}

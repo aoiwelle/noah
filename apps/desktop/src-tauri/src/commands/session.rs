@@ -147,6 +147,17 @@ pub async fn mark_resolved(
 }
 
 #[tauri::command]
+pub async fn rename_session(
+    state: State<'_, AppState>,
+    session_id: String,
+    title: String,
+) -> Result<(), String> {
+    let conn = state.db.lock().await;
+    journal::update_session_title(&conn, &session_id, &title)
+        .map_err(|e| format!("Failed to rename session: {}", e))
+}
+
+#[tauri::command]
 pub async fn delete_session(
     state: State<'_, AppState>,
     session_id: String,

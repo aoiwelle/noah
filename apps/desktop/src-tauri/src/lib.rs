@@ -286,6 +286,7 @@ pub fn run() {
             commands::session::get_session,
             commands::session::end_session,
             commands::session::delete_session,
+            commands::session::rename_session,
             commands::session::list_sessions,
             commands::session::get_session_messages,
             commands::session::get_session_summary,
