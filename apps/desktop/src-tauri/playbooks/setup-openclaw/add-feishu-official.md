@@ -5,6 +5,7 @@ platform: all
 last_reviewed: 2026-03-09
 author: noah-team
 type: system
+emoji: 🦞
 ---
 
 # Add Feishu Official Plugin

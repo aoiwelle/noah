@@ -5,6 +5,7 @@ platform: windows
 last_reviewed: 2026-03-04
 author: noah-team
 type: system
+emoji: 🖨️
 ---
 
 # Windows Printer Repair

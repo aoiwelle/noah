@@ -5,6 +5,7 @@ platform: macos
 last_reviewed: 2026-03-07
 author: noah-team
 type: system
+emoji: 💾
 ---
 
 # Disk Space Recovery
