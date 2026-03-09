@@ -28,114 +28,108 @@ function formatDate(iso: string, t: (key: string, params?: Record<string, string
   });
 }
 
-function OverflowMenu({
-  session,
+/** Context menu state shared across all session items (only one open at a time). */
+interface ContextMenuState {
+  session: SessionRecord;
+  x: number;
+  y: number;
+  confirmDelete: boolean;
+}
+
+function ContextMenu({
+  menu,
+  setMenu,
   onResolveToggle,
   onExport,
   onDelete,
   t,
 }: {
-  session: SessionRecord;
-  onResolveToggle: () => void;
-  onExport: () => void;
-  onDelete: () => void;
+  menu: ContextMenuState;
+  setMenu: (m: ContextMenuState | null) => void;
+  onResolveToggle: (sessionId: string, resolved: boolean) => void;
+  onExport: (sessionId: string, title: string) => void;
+  onDelete: (sessionId: string) => void;
   t: (key: string) => string;
 }) {
-  const [open, setOpen] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!open) return;
     const handler = (e: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setOpen(false);
-        setConfirmDelete(false);
+        setMenu(null);
       }
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
-  }, [open]);
+  }, [setMenu]);
+
+  // Adjust position to stay on screen
+  const style: React.CSSProperties = {
+    position: "fixed",
+    left: menu.x,
+    top: menu.y,
+    zIndex: 9999,
+  };
 
   return (
-    <div className="relative" ref={menuRef}>
+    <div ref={menuRef} style={style} className="w-44 bg-bg-secondary border border-border-primary rounded-lg shadow-2xl py-1">
+      {menu.session.resolved !== true && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onResolveToggle(menu.session.id, true);
+            setMenu(null);
+          }}
+          className="w-full px-3 py-1.5 text-left text-xs text-text-secondary hover:bg-bg-tertiary transition-colors cursor-pointer"
+        >
+          {t("sidebar.markResolved")}
+        </button>
+      )}
       <button
         onClick={(e) => {
           e.stopPropagation();
-          setOpen(!open);
-          setConfirmDelete(false);
+          onExport(menu.session.id, menu.session.title || "session");
+          setMenu(null);
         }}
-        className="w-6 h-6 rounded flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-bg-tertiary transition-colors cursor-pointer opacity-0 group-hover:opacity-100"
+        className="w-full px-3 py-1.5 text-left text-xs text-text-secondary hover:bg-bg-tertiary transition-colors cursor-pointer"
       >
-        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-          <circle cx="2" cy="6" r="1.2" fill="currentColor" />
-          <circle cx="6" cy="6" r="1.2" fill="currentColor" />
-          <circle cx="10" cy="6" r="1.2" fill="currentColor" />
-        </svg>
+        {t("sidebar.export")}
       </button>
-
-      {open && (
-        <div className="absolute left-0 top-full mt-1 w-40 bg-bg-secondary border border-border-primary rounded-lg shadow-xl z-50 py-1 overflow-hidden">
-          {session.resolved !== true && (
+      <div className="border-t border-border-primary mt-1 pt-1">
+        {menu.confirmDelete ? (
+          <div className="flex items-center gap-2 px-3 py-1.5">
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                onResolveToggle();
-                setOpen(false);
+                onDelete(menu.session.id);
+                setMenu(null);
               }}
-              className="w-full px-3 py-1.5 text-left text-xs text-text-secondary hover:bg-bg-tertiary transition-colors cursor-pointer"
+              className="text-xs text-accent-red font-medium cursor-pointer hover:underline"
             >
-              {t("sidebar.markResolved")}
+              {t("sidebar.confirm")}
             </button>
-          )}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setMenu({ ...menu, confirmDelete: false });
+              }}
+              className="text-xs text-text-muted cursor-pointer hover:underline"
+            >
+              {t("sidebar.cancel")}
+            </button>
+          </div>
+        ) : (
           <button
             onClick={(e) => {
               e.stopPropagation();
-              onExport();
-              setOpen(false);
+              setMenu({ ...menu, confirmDelete: true });
             }}
-            className="w-full px-3 py-1.5 text-left text-xs text-text-secondary hover:bg-bg-tertiary transition-colors cursor-pointer"
+            className="w-full px-3 py-1.5 text-left text-xs text-accent-red hover:bg-bg-tertiary transition-colors cursor-pointer"
           >
-            {t("sidebar.export")}
+            {t("sidebar.delete")}
           </button>
-          <div className="border-t border-border-primary mt-1 pt-1">
-            {confirmDelete ? (
-              <div className="flex items-center gap-2 px-3 py-1.5">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onDelete();
-                    setOpen(false);
-                    setConfirmDelete(false);
-                  }}
-                  className="text-xs text-accent-red font-medium cursor-pointer hover:underline"
-                >
-                  {t("sidebar.confirm")}
-                </button>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setConfirmDelete(false);
-                  }}
-                  className="text-xs text-text-muted cursor-pointer hover:underline"
-                >
-                  {t("sidebar.cancel")}
-                </button>
-              </div>
-            ) : (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setConfirmDelete(true);
-                }}
-                className="w-full px-3 py-1.5 text-left text-xs text-accent-red hover:bg-bg-tertiary transition-colors cursor-pointer"
-              >
-                {t("sidebar.delete")}
-              </button>
-            )}
-          </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
@@ -144,17 +138,13 @@ function SessionItem({
   session,
   isActive,
   onSelect,
-  onExport,
-  onDelete,
-  onResolveToggle,
+  onContextMenu,
   t,
 }: {
   session: SessionRecord;
   isActive: boolean;
   onSelect: (sessionId: string) => void;
-  onExport: (sessionId: string, title: string) => void;
-  onDelete: (sessionId: string) => void;
-  onResolveToggle: (sessionId: string, resolved: boolean) => void;
+  onContextMenu: (e: React.MouseEvent, session: SessionRecord) => void;
   t: (key: string, params?: Record<string, string | number>) => string;
 }) {
   return (
@@ -163,6 +153,7 @@ function SessionItem({
       tabIndex={0}
       onClick={() => onSelect(session.id)}
       onKeyDown={(e) => { if (e.key === "Enter") onSelect(session.id); }}
+      onContextMenu={(e) => onContextMenu(e, session)}
       className={`group flex items-center gap-2 px-3 py-2 rounded-lg mx-2 cursor-pointer transition-colors ${
         isActive
           ? "bg-bg-tertiary text-text-primary"
@@ -180,17 +171,6 @@ function SessionItem({
           )}
         </p>
       </div>
-      <OverflowMenu
-        session={session}
-        onResolveToggle={() =>
-          onResolveToggle(session.id, session.resolved !== true)
-        }
-        onExport={() =>
-          onExport(session.id, session.title || "session")
-        }
-        onDelete={() => onDelete(session.id)}
-        t={t}
-      />
     </div>
   );
 }
@@ -209,6 +189,7 @@ export function Sidebar({ session }: SidebarProps) {
   const pastSessions = useSessionStore((s) => s.pastSessions);
   const setPastSessions = useSessionStore((s) => s.setPastSessions);
   const { switchToProblem } = useSession();
+  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
 
   const loadSessions = useCallback(async () => {
     try {
@@ -296,6 +277,14 @@ export function Sidebar({ session }: SidebarProps) {
     await session.startNewProblem();
   }, [session, setActiveView]);
 
+  const handleContextMenu = useCallback(
+    (e: React.MouseEvent, s: SessionRecord) => {
+      e.preventDefault();
+      setContextMenu({ session: s, x: e.clientX, y: e.clientY, confirmDelete: false });
+    },
+    [],
+  );
+
   if (!sidebarOpen) return null;
 
   return (
@@ -368,15 +357,24 @@ export function Sidebar({ session }: SidebarProps) {
                 session={s}
                 isActive={s.id === currentSessionId}
                 onSelect={handleSelectSession}
-                onExport={handleExport}
-                onDelete={handleDelete}
-                onResolveToggle={handleResolveToggle}
+                onContextMenu={handleContextMenu}
                 t={t}
               />
             ))}
           </div>
         )}
       </div>
+
+      {contextMenu && (
+        <ContextMenu
+          menu={contextMenu}
+          setMenu={setContextMenu}
+          onResolveToggle={handleResolveToggle}
+          onExport={handleExport}
+          onDelete={handleDelete}
+          t={t}
+        />
+      )}
     </div>
   );
 }
