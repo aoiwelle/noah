@@ -1,6 +1,6 @@
 ---
 name: setup-openclaw
-description: Install and configure OpenClaw — an AI gateway connecting Claude to WhatsApp, Telegram, and other messaging channels
+description: Install and configure OpenClaw (龙虾) — an AI gateway connecting Claude to WhatsApp, Telegram, and other messaging channels
 platform: all
 last_reviewed: 2026-03-08
 author: noah-team
@@ -9,13 +9,15 @@ type: system
 
 # Set Up OpenClaw
 
-OpenClaw is an AI gateway that connects LLMs (Claude, GPT, etc.) to messaging
-channels (WhatsApp, Telegram, Feishu/飞书, Discord, etc.). It runs locally on
-the user's machine as a background service.
+OpenClaw (also known as "龙虾" / "longxia" in Chinese communities) is an AI
+gateway that connects LLMs (Claude, GPT, etc.) to messaging channels (WhatsApp,
+Telegram, Feishu/飞书, Discord, etc.). It runs locally on the user's machine
+as a background service.
 
 ## When to activate
 User wants to install OpenClaw, set up an AI assistant on WhatsApp/Telegram/
-Feishu/Discord, configure an AI chatbot on messaging apps, or mentions "openclaw".
+Feishu/Discord, configure an AI chatbot on messaging apps, or mentions
+"openclaw", "龙虾", or "longxia".
 
 ## Step 1: Check Environment
 
