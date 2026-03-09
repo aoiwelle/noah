@@ -203,9 +203,8 @@ pub fn run() {
 
             // Register knowledge tools.
             router.register(Box::new(knowledge::WriteKnowledgeTool::new(knowledge_dir.clone())));
-            router.register(Box::new(knowledge::SearchKnowledgeTool::new(knowledge_dir.clone())));
-            router.register(Box::new(knowledge::ReadKnowledgeTool::new(knowledge_dir.clone())));
-            router.register(Box::new(knowledge::ListKnowledgeTool::new(knowledge_dir.clone())));
+            router.register(Box::new(knowledge::KnowledgeSearchTool::new(knowledge_dir.clone())));
+            router.register(Box::new(knowledge::KnowledgeReadTool::new(knowledge_dir.clone())));
 
             // Register UI tools.
             ui_tools::register_ui_tools(&mut router);

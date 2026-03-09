@@ -98,13 +98,10 @@ pub async fn run_prompt_flow(prompt: &str, max_turns: usize) -> Result<PromptRun
     router.register(Box::new(knowledge::WriteKnowledgeTool::new(
         knowledge_dir.clone(),
     )));
-    router.register(Box::new(knowledge::SearchKnowledgeTool::new(
+    router.register(Box::new(knowledge::KnowledgeSearchTool::new(
         knowledge_dir.clone(),
     )));
-    router.register(Box::new(knowledge::ReadKnowledgeTool::new(
-        knowledge_dir.clone(),
-    )));
-    router.register(Box::new(knowledge::ListKnowledgeTool::new(
+    router.register(Box::new(knowledge::KnowledgeReadTool::new(
         knowledge_dir.clone(),
     )));
 

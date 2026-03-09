@@ -98,29 +98,48 @@ pub struct KnowledgeEntry {
     pub path: String,
     pub title: String,
     pub playbook_type: Option<String>,
+    /// Description from frontmatter (playbooks only).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
 }
 
-fn extract_playbook_type(content: &str) -> Option<String> {
+/// Parsed frontmatter fields from a knowledge/playbook markdown file.
+struct Frontmatter {
+    description: Option<String>,
+    playbook_type: Option<String>,
+}
+
+fn extract_frontmatter(content: &str) -> Frontmatter {
     let trimmed = content.trim_start();
     if !trimmed.starts_with("---") {
-        return None;
+        return Frontmatter { description: None, playbook_type: None };
     }
 
     let after_first = &trimmed[3..];
-    let end = after_first.find("\n---")?;
+    let Some(end) = after_first.find("\n---") else {
+        return Frontmatter { description: None, playbook_type: None };
+    };
     let yaml_block = &after_first[..end];
+
+    let mut description = None;
+    let mut playbook_type = None;
 
     for line in yaml_block.lines() {
         let line = line.trim();
         if let Some(value) = line.strip_prefix("type:") {
             let kind = value.trim();
             if !kind.is_empty() {
-                return Some(kind.to_string());
+                playbook_type = Some(kind.to_string());
+            }
+        } else if let Some(value) = line.strip_prefix("description:") {
+            let desc = value.trim();
+            if !desc.is_empty() {
+                description = Some(desc.to_string());
             }
         }
     }
 
-    None
+    Frontmatter { description, playbook_type }
 }
 
 /// Extract the title from the first `# ` heading line, or derive from filename.
@@ -144,6 +163,7 @@ fn extract_title(content: &str, filename: &str) -> String {
 }
 
 /// List all knowledge files, optionally filtered by category.
+/// Recurses one level into subdirectories (for folder playbooks like setup-openclaw/).
 pub fn list_knowledge_tree(
     knowledge_dir: &Path,
     category: Option<&str>,
@@ -179,19 +199,27 @@ pub fn list_knowledge_tree(
             .to_string();
 
         if let Ok(read_dir) = std::fs::read_dir(&dir) {
-            let mut files: Vec<_> = read_dir.flatten().collect();
-            files.sort_by_key(|e| e.file_name());
+            let mut dir_entries: Vec<_> = read_dir.flatten().collect();
+            dir_entries.sort_by_key(|e| e.file_name());
 
-            for file_entry in files {
+            for file_entry in dir_entries {
                 let fname = file_entry.file_name().to_string_lossy().to_string();
+
+                if file_entry.file_type().map(|ft| ft.is_dir()).unwrap_or(false) {
+                    // Recurse one level into subdirectories (folder playbooks).
+                    scan_subdir(&mut entries, &cat_name, &file_entry.path(), &fname);
+                    continue;
+                }
+
                 if !fname.ends_with(".md") {
                     continue;
                 }
                 let rel_path = format!("{}/{}", cat_name, fname);
                 let content = std::fs::read_to_string(file_entry.path()).unwrap_or_default();
                 let title = extract_title(&content, &fname);
+                let fm = extract_frontmatter(&content);
                 let playbook_type = if cat_name == "playbooks" {
-                    extract_playbook_type(&content).or_else(|| Some("user".to_string()))
+                    fm.playbook_type.or_else(|| Some("user".to_string()))
                 } else {
                     None
                 };
@@ -201,6 +229,7 @@ pub fn list_knowledge_tree(
                     path: rel_path,
                     title,
                     playbook_type,
+                    description: fm.description,
                 });
             }
         }
@@ -209,26 +238,103 @@ pub fn list_knowledge_tree(
     Ok(entries)
 }
 
+/// Scan a subdirectory within a category (e.g. playbooks/setup-openclaw/).
+fn scan_subdir(entries: &mut Vec<KnowledgeEntry>, cat_name: &str, dir: &Path, folder_name: &str) {
+    let Ok(read_dir) = std::fs::read_dir(dir) else { return };
+    let mut files: Vec<_> = read_dir.flatten().collect();
+    files.sort_by_key(|e| e.file_name());
+
+    for file_entry in files {
+        let fname = file_entry.file_name().to_string_lossy().to_string();
+        if !fname.ends_with(".md") {
+            continue;
+        }
+        let rel_path = format!("{}/{}/{}", cat_name, folder_name, fname);
+        let content = std::fs::read_to_string(file_entry.path()).unwrap_or_default();
+        let title = extract_title(&content, &fname);
+        let fm = extract_frontmatter(&content);
+        let playbook_type = if cat_name == "playbooks" {
+            fm.playbook_type.or_else(|| Some("user".to_string()))
+        } else {
+            None
+        };
+        entries.push(KnowledgeEntry {
+            category: cat_name.to_string(),
+            filename: fname,
+            path: rel_path,
+            title,
+            playbook_type,
+            description: fm.description,
+        });
+    }
+}
+
 /// Build a compact table-of-contents string for the system prompt.
 ///
-/// Format: one line per category with just the slug names.
-/// The LLM can read a file via `read_knowledge` with path `{category}/{slug}.md`.
+/// Playbook entries show "slug — description" format.
+/// Non-playbook categories show compact slug lists.
+/// Folder playbooks (e.g. setup-openclaw/) are shown as a single entry using their
+/// main playbook.md description, not expanded into individual sub-modules.
 pub fn knowledge_toc(knowledge_dir: &Path) -> Result<String> {
     let entries = list_knowledge_tree(knowledge_dir, None)?;
     if entries.is_empty() {
         return Ok(String::new());
     }
 
-    // Group slugs by category.
-    let mut cats: std::collections::BTreeMap<String, Vec<String>> = std::collections::BTreeMap::new();
+    // Group entries by category.
+    let mut cats: std::collections::BTreeMap<String, Vec<&KnowledgeEntry>> =
+        std::collections::BTreeMap::new();
     for entry in &entries {
-        let slug = entry.filename.trim_end_matches(".md").to_string();
-        cats.entry(entry.category.clone()).or_default().push(slug);
+        cats.entry(entry.category.clone()).or_default().push(entry);
     }
 
-    let mut lines = vec!["## Knowledge Base (use search_knowledge to find relevant files)".to_string()];
-    for (cat, slugs) in &cats {
-        lines.push(format!("{}: {}", cat, slugs.join(", ")));
+    let mut lines = vec![
+        "## Knowledge Base".to_string(),
+        "Use knowledge_search to find files, knowledge_read to read them.".to_string(),
+    ];
+
+    for (cat, cat_entries) in &cats {
+        if cat == "playbooks" {
+            // Show playbooks with descriptions, deduplicating folder playbooks.
+            lines.push(String::new());
+            lines.push("playbooks:".to_string());
+            let mut seen_folders: std::collections::HashSet<String> = std::collections::HashSet::new();
+            for entry in cat_entries {
+                // Check if this is a folder playbook sub-module (path has 3 segments).
+                let segments: Vec<&str> = entry.path.split('/').collect();
+                if segments.len() == 3 {
+                    // Folder playbook: show once using the folder name.
+                    let folder = segments[1].to_string();
+                    if !seen_folders.insert(folder.clone()) {
+                        continue; // Already shown this folder.
+                    }
+                    // Find the playbook.md entry for this folder to get its description.
+                    let desc = cat_entries.iter()
+                        .find(|e| e.path == format!("playbooks/{}/playbook.md", folder))
+                        .and_then(|e| e.description.as_deref());
+                    if let Some(d) = desc {
+                        lines.push(format!("- {} — {}", folder, d));
+                    } else {
+                        lines.push(format!("- {}", folder));
+                    }
+                } else {
+                    // Flat playbook.
+                    let slug = entry.filename.trim_end_matches(".md");
+                    if let Some(d) = &entry.description {
+                        lines.push(format!("- {} — {}", slug, d));
+                    } else {
+                        lines.push(format!("- {}", slug));
+                    }
+                }
+            }
+        } else {
+            // Non-playbook: compact slug list.
+            let slugs: Vec<String> = cat_entries
+                .iter()
+                .map(|e| e.filename.trim_end_matches(".md").to_string())
+                .collect();
+            lines.push(format!("{}: {}", cat, slugs.join(", ")));
+        }
     }
 
     Ok(lines.join("\n"))
@@ -311,42 +417,92 @@ impl Tool for WriteKnowledgeTool {
     }
 }
 
-// -- SearchKnowledge --
+// -- KnowledgeSearch --
 
-pub struct SearchKnowledgeTool {
+pub struct KnowledgeSearchTool {
     knowledge_dir: PathBuf,
 }
 
-impl SearchKnowledgeTool {
+impl KnowledgeSearchTool {
     pub fn new(knowledge_dir: PathBuf) -> Self {
         Self { knowledge_dir }
     }
 }
 
+/// Collect all .md files under a directory recursively (max 2 levels deep).
+/// Returns (relative_path, absolute_path) pairs.
+fn collect_files_under(base: &Path, rel_prefix: &str) -> Vec<(String, PathBuf)> {
+    let mut results = Vec::new();
+    let Ok(read_dir) = std::fs::read_dir(base) else { return results };
+    let mut dir_entries: Vec<_> = read_dir.flatten().collect();
+    dir_entries.sort_by_key(|e| e.file_name());
+
+    for entry in dir_entries {
+        let fname = entry.file_name().to_string_lossy().to_string();
+        let path = entry.path();
+
+        if path.is_dir() {
+            // Recurse one level.
+            let sub_prefix = if rel_prefix.is_empty() {
+                fname.clone()
+            } else {
+                format!("{}/{}", rel_prefix, fname)
+            };
+            let Ok(sub_dir) = std::fs::read_dir(&path) else { continue };
+            let mut sub_entries: Vec<_> = sub_dir.flatten().collect();
+            sub_entries.sort_by_key(|e| e.file_name());
+            for sub in sub_entries {
+                let sub_name = sub.file_name().to_string_lossy().to_string();
+                if sub_name.ends_with(".md") {
+                    let rel = format!("{}/{}", sub_prefix, sub_name);
+                    results.push((rel, sub.path()));
+                }
+            }
+        } else if fname.ends_with(".md") {
+            let rel = if rel_prefix.is_empty() {
+                fname
+            } else {
+                format!("{}/{}", rel_prefix, fname)
+            };
+            results.push((rel, path));
+        }
+    }
+    results
+}
+
 #[async_trait]
-impl Tool for SearchKnowledgeTool {
+impl Tool for KnowledgeSearchTool {
     fn name(&self) -> &str {
-        "search_knowledge"
+        "knowledge_search"
     }
 
     fn description(&self) -> &str {
-        "Search across all knowledge files for a keyword or phrase. Returns matching files with context snippets."
+        "Search knowledge files by pattern. Use '*' to list all files. Matches file names and content."
     }
 
     fn input_schema(&self) -> Value {
         json!({
             "type": "object",
             "properties": {
-                "query": {
+                "pattern": {
                     "type": "string",
-                    "description": "Text to search for (case-insensitive)."
+                    "description": "Search pattern. Matches against file names and content. Use '*' to list all files."
                 },
-                "category": {
+                "path": {
                     "type": "string",
-                    "description": "Optional category folder to limit the search."
+                    "description": "Scope search to a subdirectory (e.g. 'playbooks/setup-openclaw'). Defaults to all knowledge."
+                },
+                "output_mode": {
+                    "type": "string",
+                    "enum": ["files", "content"],
+                    "description": "Output mode: 'files' lists matching file paths with titles (default), 'content' shows matching lines with context."
+                },
+                "context": {
+                    "type": "number",
+                    "description": "Lines of context around each match (only for output_mode: 'content'). Default: 1."
                 }
             },
-            "required": ["query"]
+            "required": ["pattern"]
         })
     }
 
@@ -355,94 +511,197 @@ impl Tool for SearchKnowledgeTool {
     }
 
     async fn execute(&self, input: &Value) -> Result<ToolResult> {
-        let query = input
-            .get("query")
+        let pattern = input
+            .get("pattern")
             .and_then(|v| v.as_str())
-            .context("Missing 'query'")?;
-        let category = input.get("category").and_then(|v| v.as_str());
+            .context("Missing 'pattern'")?;
+        let scoped_path = input.get("path").and_then(|v| v.as_str());
+        let output_mode = input
+            .get("output_mode")
+            .and_then(|v| v.as_str())
+            .unwrap_or("files");
+        let context_lines = input
+            .get("context")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(1) as usize;
 
-        let query_lower = query.to_lowercase();
-        let entries = list_knowledge_tree(&self.knowledge_dir, category)?;
+        let is_wildcard = pattern == "*";
+        let pattern_lower = pattern.to_lowercase();
+
+        // Determine search root and relative prefix.
+        let (search_root, rel_prefix) = if let Some(p) = scoped_path {
+            let resolved = safe_resolve(&self.knowledge_dir, p)?;
+            if !resolved.is_dir() {
+                return Ok(ToolResult::read_only(
+                    format!("Directory not found: {}", p),
+                    json!({ "results": [] }),
+                ));
+            }
+            (resolved, p.to_string())
+        } else {
+            (self.knowledge_dir.clone(), String::new())
+        };
+
+        let files = collect_files_under(&search_root, &rel_prefix);
+
+        match output_mode {
+            "content" => self.execute_content_mode(&files, &pattern_lower, is_wildcard, context_lines),
+            _ => self.execute_files_mode(&files, &pattern_lower, is_wildcard),
+        }
+    }
+}
+
+impl KnowledgeSearchTool {
+    fn execute_files_mode(
+        &self,
+        files: &[(String, PathBuf)],
+        pattern_lower: &str,
+        is_wildcard: bool,
+    ) -> Result<ToolResult> {
         let mut results: Vec<Value> = Vec::new();
 
-        for entry in &entries {
-            let full_path = self.knowledge_dir.join(&entry.path);
-            let content = match std::fs::read_to_string(&full_path) {
+        for (rel_path, abs_path) in files {
+            let content = std::fs::read_to_string(abs_path).unwrap_or_default();
+            let title = extract_title(&content, rel_path.rsplit('/').next().unwrap_or(rel_path));
+
+            let matches = is_wildcard
+                || rel_path.to_lowercase().contains(pattern_lower)
+                || content.to_lowercase().contains(pattern_lower);
+
+            if matches {
+                results.push(json!({
+                    "path": rel_path,
+                    "title": title,
+                }));
+            }
+        }
+
+        if results.is_empty() {
+            return Ok(ToolResult::read_only(
+                if is_wildcard {
+                    "No knowledge files found.".to_string()
+                } else {
+                    format!("No knowledge files match '{}'.", pattern_lower)
+                },
+                json!({ "results": [] }),
+            ));
+        }
+
+        // Group by category (first path segment) for display.
+        let mut lines = Vec::new();
+        let mut current_cat = String::new();
+        for r in &results {
+            let path = r["path"].as_str().unwrap_or("");
+            let title = r["title"].as_str().unwrap_or("");
+            let cat = path.split('/').next().unwrap_or("");
+            if cat != current_cat {
+                current_cat = cat.to_string();
+                lines.push(format!("\n### {}", current_cat));
+            }
+            lines.push(format!("- {} (`{}`)", title, path));
+        }
+
+        Ok(ToolResult::read_only(
+            format!("{} file(s):{}", results.len(), lines.join("\n")),
+            json!({ "results": results }),
+        ))
+    }
+
+    fn execute_content_mode(
+        &self,
+        files: &[(String, PathBuf)],
+        pattern_lower: &str,
+        is_wildcard: bool,
+        context_lines: usize,
+    ) -> Result<ToolResult> {
+        let mut results: Vec<Value> = Vec::new();
+
+        for (rel_path, abs_path) in files {
+            let content = match std::fs::read_to_string(abs_path) {
                 Ok(c) => c,
                 Err(_) => continue,
             };
 
+            // For wildcard in content mode, skip — it doesn't make sense to show all content.
+            if is_wildcard {
+                continue;
+            }
+
             let lines: Vec<&str> = content.lines().collect();
             let mut snippets: Vec<String> = Vec::new();
+            let mut last_end: usize = 0; // Track to avoid overlapping snippets.
 
             for (i, line) in lines.iter().enumerate() {
-                if line.to_lowercase().contains(&query_lower) {
-                    // Grab line before, matching line, and line after.
-                    let start = if i > 0 { i - 1 } else { i };
-                    let end = (i + 2).min(lines.len());
+                if i < last_end {
+                    continue; // Skip lines already included in a previous snippet.
+                }
+                if line.to_lowercase().contains(pattern_lower) {
+                    let start = i.saturating_sub(context_lines);
+                    let end = (i + context_lines + 1).min(lines.len());
                     let snippet: String = lines[start..end].join("\n");
                     snippets.push(snippet);
-                    if snippets.len() >= 2 {
-                        break; // Max 2 snippets per file
+                    last_end = end;
+                    if snippets.len() >= 3 {
+                        break;
                     }
                 }
             }
 
             if !snippets.is_empty() {
                 results.push(json!({
-                    "path": entry.path,
-                    "title": entry.title,
+                    "path": rel_path,
+                    "title": extract_title(&content, rel_path.rsplit('/').next().unwrap_or(rel_path)),
                     "snippets": snippets,
                 }));
             }
 
-            if results.len() >= 10 {
+            if results.len() >= 15 {
                 break;
             }
         }
 
         if results.is_empty() {
             return Ok(ToolResult::read_only(
-                format!("No knowledge files match '{}'.", query),
+                format!("No knowledge files match '{}'.", pattern_lower),
                 json!({ "results": [] }),
             ));
         }
 
-        let mut lines = vec![format!("Found {} matching file(s):", results.len())];
+        let mut output = vec![format!("Found {} matching file(s):", results.len())];
         for r in &results {
             let path = r["path"].as_str().unwrap_or("");
             let title = r["title"].as_str().unwrap_or("");
-            lines.push(format!("\n### {} (`{}`)", title, path));
+            output.push(format!("\n### {} (`{}`)", title, path));
             if let Some(snippets) = r["snippets"].as_array() {
                 for s in snippets {
-                    lines.push(format!("  {}", s.as_str().unwrap_or("")));
+                    output.push(format!("  {}", s.as_str().unwrap_or("")));
                 }
             }
         }
 
         Ok(ToolResult::read_only(
-            lines.join("\n"),
+            output.join("\n"),
             json!({ "results": results }),
         ))
     }
 }
 
-// -- ReadKnowledge --
+// -- KnowledgeRead --
 
-pub struct ReadKnowledgeTool {
+pub struct KnowledgeReadTool {
     knowledge_dir: PathBuf,
 }
 
-impl ReadKnowledgeTool {
+impl KnowledgeReadTool {
     pub fn new(knowledge_dir: PathBuf) -> Self {
         Self { knowledge_dir }
     }
 }
 
 #[async_trait]
-impl Tool for ReadKnowledgeTool {
+impl Tool for KnowledgeReadTool {
     fn name(&self) -> &str {
-        "read_knowledge"
+        "knowledge_read"
     }
 
     fn description(&self) -> &str {
@@ -455,7 +714,15 @@ impl Tool for ReadKnowledgeTool {
             "properties": {
                 "path": {
                     "type": "string",
-                    "description": "Relative path, e.g. 'devices/hp-laserjet-pro-m404n.md'."
+                    "description": "Relative path, e.g. 'devices/hp-laserjet-pro-m404n.md' or 'playbooks/setup-openclaw/configure.md'."
+                },
+                "offset": {
+                    "type": "number",
+                    "description": "Line number to start reading from (0-based). Default: 0."
+                },
+                "limit": {
+                    "type": "number",
+                    "description": "Maximum number of lines to return. Default: all."
                 }
             },
             "required": ["path"]
@@ -471,93 +738,31 @@ impl Tool for ReadKnowledgeTool {
             .get("path")
             .and_then(|v| v.as_str())
             .context("Missing 'path'")?;
+        let offset = input.get("offset").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
+        let limit = input.get("limit").and_then(|v| v.as_u64()).map(|v| v as usize);
+
         let full_path = safe_resolve(&self.knowledge_dir, path)?;
 
         let content = std::fs::read_to_string(&full_path)
             .with_context(|| format!("File not found: {}", path))?;
 
-        Ok(ToolResult::read_only(
-            content.clone(),
-            json!({ "path": path, "content": content }),
-        ))
-    }
-}
-
-// -- ListKnowledge --
-
-pub struct ListKnowledgeTool {
-    knowledge_dir: PathBuf,
-}
-
-impl ListKnowledgeTool {
-    pub fn new(knowledge_dir: PathBuf) -> Self {
-        Self { knowledge_dir }
-    }
-}
-
-#[async_trait]
-impl Tool for ListKnowledgeTool {
-    fn name(&self) -> &str {
-        "list_knowledge"
-    }
-
-    fn description(&self) -> &str {
-        "List all knowledge files, optionally filtered by category."
-    }
-
-    fn input_schema(&self) -> Value {
-        json!({
-            "type": "object",
-            "properties": {
-                "category": {
-                    "type": "string",
-                    "description": "Optional category folder to list."
-                }
-            },
-            "required": []
-        })
-    }
-
-    fn safety_tier(&self) -> SafetyTier {
-        SafetyTier::ReadOnly
-    }
-
-    async fn execute(&self, input: &Value) -> Result<ToolResult> {
-        let category = input.get("category").and_then(|v| v.as_str());
-        let entries = list_knowledge_tree(&self.knowledge_dir, category)?;
-
-        if entries.is_empty() {
-            return Ok(ToolResult::read_only(
-                "No knowledge files found.".to_string(),
-                json!({ "entries": [] }),
-            ));
-        }
-
-        let mut lines = Vec::new();
-        let mut current_cat = String::new();
-        for entry in &entries {
-            if entry.category != current_cat {
-                current_cat = entry.category.clone();
-                lines.push(format!("\n### {}", current_cat));
-            }
-            lines.push(format!("- {} (`{}`)", entry.title, entry.path));
-        }
-
-        let data: Vec<Value> = entries
-            .iter()
-            .map(|e| {
-                json!({
-                    "category": e.category,
-                    "filename": e.filename,
-                    "path": e.path,
-                    "title": e.title,
-                })
-            })
-            .collect();
+        // Apply offset/limit if specified.
+        let output = if offset > 0 || limit.is_some() {
+            let lines: Vec<&str> = content.lines().collect();
+            let start = offset.min(lines.len());
+            let end = if let Some(lim) = limit {
+                (start + lim).min(lines.len())
+            } else {
+                lines.len()
+            };
+            lines[start..end].join("\n")
+        } else {
+            content.clone()
+        };
 
         Ok(ToolResult::read_only(
-            format!("{} knowledge file(s):{}", entries.len(), lines.join("\n")),
-            json!({ "entries": data }),
+            output.clone(),
+            json!({ "path": path, "content": output }),
         ))
     }
 }
@@ -742,6 +947,27 @@ type: system
         let entries = list_knowledge_tree(&kdir, Some("playbooks")).unwrap();
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].playbook_type.as_deref(), Some("system"));
+        assert_eq!(entries[0].description.as_deref(), Some("Diagnose network issues"));
+    }
+
+    #[test]
+    fn test_list_knowledge_tree_folder_playbooks() {
+        let (_tmp, kdir) = setup();
+        let pb_dir = kdir.join("playbooks/setup-openclaw");
+        std::fs::create_dir_all(&pb_dir).unwrap();
+        std::fs::write(
+            pb_dir.join("playbook.md"),
+            "---\nname: setup-openclaw\ndescription: Install and configure OpenClaw\ntype: system\n---\n# Set Up OpenClaw",
+        ).unwrap();
+        std::fs::write(
+            pb_dir.join("configure.md"),
+            "---\nname: configure\ndescription: Configure OpenClaw\ntype: system\n---\n# Configure OpenClaw",
+        ).unwrap();
+
+        let entries = list_knowledge_tree(&kdir, Some("playbooks")).unwrap();
+        assert_eq!(entries.len(), 2);
+        assert!(entries.iter().any(|e| e.path == "playbooks/setup-openclaw/playbook.md"));
+        assert!(entries.iter().any(|e| e.path == "playbooks/setup-openclaw/configure.md"));
     }
 
     #[test]
@@ -760,6 +986,32 @@ type: system
         assert!(toc.contains("Knowledge Base"));
         assert!(toc.contains("devices:"));
         assert!(toc.contains("printer"));
+    }
+
+    #[test]
+    fn test_knowledge_toc_enriched_playbook_descriptions() {
+        let (_tmp, kdir) = setup();
+        std::fs::write(
+            kdir.join("playbooks/network-diagnostics.md"),
+            "---\nname: network-diagnostics\ndescription: Diagnose and fix network issues\ntype: system\n---\n# Network",
+        ).unwrap();
+
+        let pb_dir = kdir.join("playbooks/setup-openclaw");
+        std::fs::create_dir_all(&pb_dir).unwrap();
+        std::fs::write(
+            pb_dir.join("playbook.md"),
+            "---\nname: setup-openclaw\ndescription: Install and configure OpenClaw\ntype: system\n---\n# OpenClaw",
+        ).unwrap();
+        std::fs::write(
+            pb_dir.join("configure.md"),
+            "---\nname: configure\ndescription: Configure OpenClaw\ntype: system\n---\n# Configure",
+        ).unwrap();
+
+        let toc = knowledge_toc(&kdir).unwrap();
+        assert!(toc.contains("network-diagnostics — Diagnose and fix network issues"));
+        assert!(toc.contains("setup-openclaw — Install and configure OpenClaw"));
+        // Sub-modules should NOT be listed individually in TOC.
+        assert!(!toc.contains("configure.md"));
     }
 
     #[test]
@@ -815,7 +1067,7 @@ type: system
     }
 
     #[tokio::test]
-    async fn test_search_knowledge_tool() {
+    async fn test_knowledge_search_content_mode() {
         let (_tmp, kdir) = setup();
         std::fs::write(
             kdir.join("devices/printer.md"),
@@ -828,24 +1080,84 @@ type: system
         )
         .unwrap();
 
-        let tool = SearchKnowledgeTool::new(kdir);
-        let input = json!({ "query": "DNS" });
+        let tool = KnowledgeSearchTool::new(kdir);
+        let input = json!({ "pattern": "DNS", "output_mode": "content" });
         let result = tool.execute(&input).await.unwrap();
         assert!(result.output.contains("1 matching file"));
         assert!(result.output.contains("WiFi Config"));
     }
 
     #[tokio::test]
-    async fn test_search_knowledge_tool_no_results() {
+    async fn test_knowledge_search_no_results() {
         let (_tmp, kdir) = setup();
-        let tool = SearchKnowledgeTool::new(kdir);
-        let input = json!({ "query": "nonexistent" });
+        let tool = KnowledgeSearchTool::new(kdir);
+        let input = json!({ "pattern": "nonexistent" });
         let result = tool.execute(&input).await.unwrap();
         assert!(result.output.contains("No knowledge files"));
     }
 
     #[tokio::test]
-    async fn test_read_knowledge_tool() {
+    async fn test_knowledge_search_wildcard_lists_all() {
+        let (_tmp, kdir) = setup();
+        std::fs::write(kdir.join("devices/printer.md"), "# Printer").unwrap();
+        std::fs::write(kdir.join("issues/bug.md"), "# Bug").unwrap();
+
+        let tool = KnowledgeSearchTool::new(kdir);
+        let input = json!({ "pattern": "*" });
+        let result = tool.execute(&input).await.unwrap();
+        assert!(result.output.contains("2 file(s)"));
+        assert!(result.output.contains("Printer"));
+        assert!(result.output.contains("Bug"));
+    }
+
+    #[tokio::test]
+    async fn test_knowledge_search_scoped_path() {
+        let (_tmp, kdir) = setup();
+        let pb_dir = kdir.join("playbooks/setup-openclaw");
+        std::fs::create_dir_all(&pb_dir).unwrap();
+        std::fs::write(pb_dir.join("playbook.md"), "# Set Up OpenClaw").unwrap();
+        std::fs::write(pb_dir.join("configure.md"), "# Configure OpenClaw").unwrap();
+        std::fs::write(kdir.join("devices/printer.md"), "# Printer").unwrap();
+
+        let tool = KnowledgeSearchTool::new(kdir);
+        let input = json!({ "pattern": "*", "path": "playbooks/setup-openclaw" });
+        let result = tool.execute(&input).await.unwrap();
+        assert!(result.output.contains("2 file(s)"));
+        assert!(result.output.contains("Configure OpenClaw"));
+        assert!(!result.output.contains("Printer"));
+    }
+
+    #[tokio::test]
+    async fn test_knowledge_search_content_with_context() {
+        let (_tmp, kdir) = setup();
+        std::fs::write(
+            kdir.join("network/wifi.md"),
+            "# WiFi Config\n\nLine 1\nLine 2\nDNS: 8.8.8.8\nLine 4\nLine 5",
+        )
+        .unwrap();
+
+        let tool = KnowledgeSearchTool::new(kdir);
+        let input = json!({ "pattern": "DNS", "output_mode": "content", "context": 2 });
+        let result = tool.execute(&input).await.unwrap();
+        assert!(result.output.contains("Line 2"));
+        assert!(result.output.contains("DNS: 8.8.8.8"));
+        assert!(result.output.contains("Line 4"));
+    }
+
+    #[tokio::test]
+    async fn test_knowledge_search_matches_filename() {
+        let (_tmp, kdir) = setup();
+        std::fs::write(kdir.join("devices/printer.md"), "# HP LaserJet").unwrap();
+
+        let tool = KnowledgeSearchTool::new(kdir);
+        let input = json!({ "pattern": "printer" });
+        let result = tool.execute(&input).await.unwrap();
+        assert!(result.output.contains("1 file(s)"));
+        assert!(result.output.contains("HP LaserJet"));
+    }
+
+    #[tokio::test]
+    async fn test_knowledge_read_tool() {
         let (_tmp, kdir) = setup();
         std::fs::write(
             kdir.join("devices/printer.md"),
@@ -853,22 +1165,28 @@ type: system
         )
         .unwrap();
 
-        let tool = ReadKnowledgeTool::new(kdir);
+        let tool = KnowledgeReadTool::new(kdir);
         let input = json!({ "path": "devices/printer.md" });
         let result = tool.execute(&input).await.unwrap();
         assert!(result.output.contains("HP LaserJet"));
     }
 
     #[tokio::test]
-    async fn test_list_knowledge_tool() {
+    async fn test_knowledge_read_with_offset_limit() {
         let (_tmp, kdir) = setup();
-        std::fs::write(kdir.join("devices/printer.md"), "# Printer").unwrap();
+        std::fs::write(
+            kdir.join("devices/printer.md"),
+            "line 0\nline 1\nline 2\nline 3\nline 4",
+        )
+        .unwrap();
 
-        let tool = ListKnowledgeTool::new(kdir);
-        let input = json!({});
+        let tool = KnowledgeReadTool::new(kdir);
+        let input = json!({ "path": "devices/printer.md", "offset": 1, "limit": 2 });
         let result = tool.execute(&input).await.unwrap();
-        assert!(result.output.contains("1 knowledge file"));
-        assert!(result.output.contains("Printer"));
+        assert!(result.output.contains("line 1"));
+        assert!(result.output.contains("line 2"));
+        assert!(!result.output.contains("line 0"));
+        assert!(!result.output.contains("line 3"));
     }
 
     #[test]

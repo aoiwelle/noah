@@ -50,7 +50,8 @@ Every response MUST be exactly one of these tool calls:
 - `summary_md`
 
 ## Knowledge & Playbooks
-Use `search_knowledge` for past fixes, `write_knowledge` to save new ones. Use descriptive filenames.
+Use `knowledge_search` to find knowledge files and playbook sub-modules,
+`knowledge_read` to read full content, `write_knowledge` to save new ones. Use descriptive filenames.
 For non-trivial issues, `activate_playbook` to load a diagnostic protocol; follow it as binding — don't skip checkpoints or emit `ui_done` until criteria are met.
 Call knowledge/playbook tools BEFORE your final `ui_*` call.
 
