@@ -10,13 +10,12 @@ type: system
 # Set Up OpenClaw
 
 OpenClaw is an AI gateway that connects LLMs (Claude, GPT, etc.) to messaging
-channels (WhatsApp, Telegram, Discord, etc.). It runs locally on the user's
-machine as a background service.
+channels (WhatsApp, Telegram, Feishu/飞书, Discord, etc.). It runs locally on
+the user's machine as a background service.
 
 ## When to activate
 User wants to install OpenClaw, set up an AI assistant on WhatsApp/Telegram/
-Discord, configure an AI chatbot on messaging apps, or mentions "openclaw"
-or "nanoclaw" (legacy name).
+Feishu/Discord, configure an AI chatbot on messaging apps, or mentions "openclaw".
 
 ## Step 1: Check Environment
 
@@ -80,9 +79,16 @@ they can open this in a browser to manage settings visually.
 
 ## Step 5: Set Up a Messaging Channel
 
-If the wizard didn't set up a channel, or the user wants to add another one:
+If the wizard didn't set up a channel, or the user wants to add another one.
+Ask which platform the user uses — common choices by region:
 
-**WhatsApp** (most common):
+- **Chinese users**: Feishu (飞书) is most common for teams/work
+- **International**: WhatsApp or Telegram
+
+**Feishu (飞书)**: Activate `setup-openclaw/add-feishu` for guided setup.
+Requires creating an app in the Feishu developer console.
+
+**WhatsApp**:
 ```
 openclaw channels login --channel whatsapp
 ```
@@ -128,6 +134,7 @@ After the core setup, the user can add optional features:
 
 - **setup-openclaw/configure** — Edit OpenClaw configuration (models, channels,
   sessions, cron jobs, etc.)
+- **setup-openclaw/add-feishu** — Add Feishu (飞书) or Lark as a channel
 - **setup-openclaw/add-telegram** — Add Telegram as a messaging channel
 - **setup-openclaw/add-whatsapp** — Add or reconfigure WhatsApp
 - **setup-openclaw/china-models** — Set up Chinese model providers
