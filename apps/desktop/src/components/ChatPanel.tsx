@@ -581,7 +581,7 @@ function UserQuestionCard({
         <div className="px-5 pt-4 pb-3">
           {progress && <ProgressBar step={progress.step} total={progress.total} label={progress.label} />}
           <div className="text-sm font-semibold text-accent-blue mb-1.5 tracking-wide">
-            {first.header}
+            <InlineMarkdown text={first.header} />
           </div>
           <div className="text-base text-text-primary mb-3">
             <MarkdownSummary text={first.question} />
@@ -601,8 +601,8 @@ function UserQuestionCard({
                       : "border-border-primary bg-bg-secondary hover:bg-bg-tertiary"
                   }`}
                 >
-                  <div className="text-sm font-medium text-text-primary">{opt.label}</div>
-                  <div className="text-xs text-text-muted">{opt.description}</div>
+                  <div className="text-sm font-medium text-text-primary"><InlineMarkdown text={opt.label} /></div>
+                  <div className="text-xs text-text-muted"><InlineMarkdown text={opt.description || ""} /></div>
                 </button>
               ))}
             </div>
