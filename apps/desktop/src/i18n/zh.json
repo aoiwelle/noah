@@ -26,13 +26,6 @@
     "followUp": "跟进之前的问题",
     "checkOn": "查看：{title}"
   },
-  "autoRun": {
-    "planTitle": "执行计划",
-    "stepCount": "{count} 个步骤",
-    "letItRun": "开始执行",
-    "running": "自动执行中",
-    "stop": "停止"
-  },
   "welcome": {
     "greeting": "你好，我是 Noah",
     "subtitleContextual": "有什么问题？或者看看我已知道的。",

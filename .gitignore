@@ -20,3 +20,16 @@ latest.json
 
 # Product Roadmap (local research)
 _roadmap/
+
+# Claude Code local settings
+.claude/
+
+# Test artifacts (generated, not source)
+tests/__pycache__/
+tests/results.json
+tests/proactive_triage_results.json
+tests/report.html
+apps/desktop/src-tauri/tests/playbook-results/
+
+# Firebase site (deployed separately)
+site/

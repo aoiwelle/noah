@@ -1125,11 +1125,6 @@ function useActivityLog(t: (key: string) => string) {
         setElapsed(0);
       } else if (evt.event_type === "playbook_activated") {
         setIsPlaybook(true);
-        // Capture playbook steps for plan review.
-        const steps = evt.detail?.steps as Array<{ number: number; label: string }> | undefined;
-        if (steps?.length) {
-          useSessionStore.getState().setPlaybookSteps(steps);
-        }
       }
       const entry = formatActivityEntry(evt, t);
       if (entry) {
@@ -1150,58 +1145,6 @@ function useActivityLog(t: (key: string) => string) {
   const clear = useCallback(() => { setActivity([]); setIsPlaybook(false); setStatus(null); }, []);
 
   return { activity, isPlaybook, status, elapsed, clear };
-}
-
-// ── Plan Review Banner — shown when a playbook activates ──
-
-function PlanReviewBanner() {
-  const { t } = useLocale();
-  const steps = useSessionStore((s) => s.playbookSteps);
-  const autoRun = useSessionStore((s) => s.autoRun);
-  const setAutoRun = useSessionStore((s) => s.setAutoRun);
-
-  if (steps.length === 0) return null;
-
-  // Already running autonomously — show a minimal indicator with stop.
-  if (autoRun) {
-    return (
-      <div className="flex items-center gap-2 py-2 px-3 rounded-lg bg-accent-blue/10 border border-accent-blue/20">
-        <div className="w-1.5 h-1.5 rounded-full bg-accent-blue animate-pulse" />
-        <span className="text-xs text-accent-blue flex-1">{t("autoRun.running")}</span>
-        <button
-          onClick={() => setAutoRun(false)}
-          className="text-xs text-accent-red hover:text-accent-red/80 font-medium cursor-pointer"
-        >
-          {t("autoRun.stop")}
-        </button>
-      </div>
-    );
-  }
-
-  return (
-    <div className="rounded-xl border border-border-primary bg-bg-secondary p-4 animate-fade-in">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold text-text-primary">{t("autoRun.planTitle")}</h3>
-        <span className="text-xs text-text-muted">
-          {t("autoRun.stepCount", { count: steps.length })}
-        </span>
-      </div>
-      <ol className="space-y-1 mb-4">
-        {steps.map((step) => (
-          <li key={step.number} className="flex items-start gap-2 text-sm text-text-secondary">
-            <span className="text-text-muted text-xs mt-0.5 w-4 text-right shrink-0">{step.number}.</span>
-            <span>{step.label}</span>
-          </li>
-        ))}
-      </ol>
-      <button
-        onClick={() => setAutoRun(true)}
-        className="w-full py-2 px-4 rounded-lg bg-accent-blue text-white text-sm font-medium hover:bg-accent-blue/90 transition-colors cursor-pointer"
-      >
-        {t("autoRun.letItRun")}
-      </button>
-    </div>
-  );
 }
 
 function ThinkingDots({ status, elapsed }: { status: string | null; elapsed: number }) {
@@ -1524,7 +1467,6 @@ export function ChatPanel() {
                   />
                 ));
               })()}
-              {activityLog.isPlaybook && <PlanReviewBanner />}
               {isProcessing && <ThinkingDots status={activityLog.status} elapsed={activityLog.elapsed} />}
               {activityLog.activity.length > 0 && (
                 <ActivityLog activity={activityLog.activity} defaultExpanded={activityLog.isPlaybook} t={t} />

@@ -26,13 +26,6 @@
     "followUp": "Follow up on a previous issue",
     "checkOn": "Check on: {title}"
   },
-  "autoRun": {
-    "planTitle": "Plan",
-    "stepCount": "{count} steps",
-    "letItRun": "Let it run",
-    "running": "Running autonomously",
-    "stop": "Stop"
-  },
   "welcome": {
     "greeting": "Hey, I'm Noah",
     "subtitleContextual": "What's going on? Or check in on something I know about.",
