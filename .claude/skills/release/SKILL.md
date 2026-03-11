@@ -1,6 +1,6 @@
 ---
 name: release
-description: Bump version, build, and release Noah for the current platform. Handles signing keys, version bumps across all config files, testing, committing, pushing, and uploading to GitHub Releases via the release script.
+description: Bump version, build, and release Noah for the current platform. Handles signing keys, version bumps across all config files, testing, committing, pushing, and uploading to GitHub Releases.
 user-invocable: true
 ---
 
@@ -42,12 +42,12 @@ Push the commit before building (CI needs the latest code).
 
 ## Build and upload (Mac — local)
 
-Set signing keys and run the release script:
+Set signing keys and run the release script directly:
 
 ```bash
 export TAURI_SIGNING_PRIVATE_KEY="$(cat ~/.tauri/noah.key)"
 export TAURI_SIGNING_PRIVATE_KEY_PASSWORD="searchformeaning"
-./release.sh --upload --skip-install
+node scripts/release.mjs --upload --skip-install
 ```
 
 This builds a **universal macOS binary** (ARM + Intel via `--target universal-apple-darwin`), signs, notarizes, and uploads the `.dmg` + `.tar.gz` (with updater signature) to GitHub Releases. The `latest.json` registers both `darwin-aarch64` and `darwin-x86_64` for the updater.
@@ -77,11 +77,13 @@ gh run watch          # live tail
 
 ### Fallback: manual Windows build
 
-If CI is broken, Windows can still be built manually:
+If CI is broken, Windows can still be built manually on the Windows machine:
 
-1. Tell the user to run on the Windows machine: `powershell -File build-windows.ps1`
-2. SCP both NSIS (.exe) and MSI (.msi) artifacts back
-3. Upload with `gh release upload vX.Y.Z /tmp/Noah_*.exe /tmp/Noah_*.msi --clobber`
+1. SSH to Windows: `ssh xulea@100.87.199.115`
+2. Run: `cd C:\Users\xulea\src\itman && git pull && node scripts/release.mjs --build`
+   (Ensure signing key is at `~/.tauri/noah.key` and PATH includes cargo, node, pnpm)
+3. SCP both NSIS (.exe) and MSI (.msi) artifacts back
+4. Upload with `gh release upload vX.Y.Z /tmp/Noah_*.exe /tmp/Noah_*.msi --clobber`
 
 ## Post-release
 
