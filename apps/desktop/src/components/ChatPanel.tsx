@@ -1036,10 +1036,22 @@ const TOOL_NAMES_WITH_I18N = new Set([
   "write_knowledge", "knowledge_search", "knowledge_read",
 ]);
 
-function humanizeToolCall(summary: string, t: (key: string) => string): string {
-  const match = summary.match(/Calling (\w+)/);
-  if (!match) return t("chat.working");
-  const toolName = match[1];
+function humanizeToolCall(summary: string, detail: Record<string, unknown> | undefined, t: (key: string) => string): string {
+  const toolName = (detail?.name as string) || summary.match(/Calling (\w+)/)?.[1];
+  if (!toolName) return t("chat.working");
+
+  // Try to add context from the tool input.
+  const input = detail?.input as Record<string, unknown> | undefined;
+  if (input) {
+    const target = (input.host || input.domain || input.url || input.app_name ||
+      input.process_name || input.service_name || input.path || input.name || input.query) as string | undefined;
+    if (target) {
+      const short = target.length > 40 ? target.slice(0, 37) + "..." : target;
+      const base = TOOL_NAMES_WITH_I18N.has(toolName) ? t(`tools.${toolName}`) : t("chat.working");
+      return `${base} \u2014 ${short}`;
+    }
+  }
+
   if (TOOL_NAMES_WITH_I18N.has(toolName)) {
     return t(`tools.${toolName}`);
   }
@@ -1078,7 +1090,7 @@ function formatActivityEntry(evt: DebugLogPayload, t: (key: string) => string): 
       if (!preview) return null;
       // Truncate long output
       const lines = preview.split("\n");
-      const display = lines.length > 6 ? [...lines.slice(0, 5), `... (${lines.length - 5} more lines)`].join("\n") : preview;
+      const display = lines.length > 20 ? [...lines.slice(0, 18), `... (${lines.length - 18} more lines)`].join("\n") : preview;
       return { time, text: display, type: "result" };
     }
     case "llm_request":
@@ -1102,7 +1114,7 @@ function useActivityLog(t: (key: string) => string) {
     const unlisten = listen<DebugLogPayload>("debug-log", (e) => {
       const evt = e.payload;
       if (evt.event_type === "tool_call") {
-        setStatus(humanizeToolCall(evt.summary, t));
+        setStatus(humanizeToolCall(evt.summary, evt.detail, t));
         startRef.current = Date.now();
 
         setElapsed(0);
@@ -1113,6 +1125,11 @@ function useActivityLog(t: (key: string) => string) {
         setElapsed(0);
       } else if (evt.event_type === "playbook_activated") {
         setIsPlaybook(true);
+        // Capture playbook steps for plan review.
+        const steps = evt.detail?.steps as Array<{ number: number; label: string }> | undefined;
+        if (steps?.length) {
+          useSessionStore.getState().setPlaybookSteps(steps);
+        }
       }
       const entry = formatActivityEntry(evt, t);
       if (entry) {
@@ -1133,6 +1150,58 @@ function useActivityLog(t: (key: string) => string) {
   const clear = useCallback(() => { setActivity([]); setIsPlaybook(false); setStatus(null); }, []);
 
   return { activity, isPlaybook, status, elapsed, clear };
+}
+
+// ── Plan Review Banner — shown when a playbook activates ──
+
+function PlanReviewBanner() {
+  const { t } = useLocale();
+  const steps = useSessionStore((s) => s.playbookSteps);
+  const autoRun = useSessionStore((s) => s.autoRun);
+  const setAutoRun = useSessionStore((s) => s.setAutoRun);
+
+  if (steps.length === 0) return null;
+
+  // Already running autonomously — show a minimal indicator with stop.
+  if (autoRun) {
+    return (
+      <div className="flex items-center gap-2 py-2 px-3 rounded-lg bg-accent-blue/10 border border-accent-blue/20">
+        <div className="w-1.5 h-1.5 rounded-full bg-accent-blue animate-pulse" />
+        <span className="text-xs text-accent-blue flex-1">{t("autoRun.running")}</span>
+        <button
+          onClick={() => setAutoRun(false)}
+          className="text-xs text-accent-red hover:text-accent-red/80 font-medium cursor-pointer"
+        >
+          {t("autoRun.stop")}
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-xl border border-border-primary bg-bg-secondary p-4 animate-fade-in">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-sm font-semibold text-text-primary">{t("autoRun.planTitle")}</h3>
+        <span className="text-xs text-text-muted">
+          {t("autoRun.stepCount", { count: steps.length })}
+        </span>
+      </div>
+      <ol className="space-y-1 mb-4">
+        {steps.map((step) => (
+          <li key={step.number} className="flex items-start gap-2 text-sm text-text-secondary">
+            <span className="text-text-muted text-xs mt-0.5 w-4 text-right shrink-0">{step.number}.</span>
+            <span>{step.label}</span>
+          </li>
+        ))}
+      </ol>
+      <button
+        onClick={() => setAutoRun(true)}
+        className="w-full py-2 px-4 rounded-lg bg-accent-blue text-white text-sm font-medium hover:bg-accent-blue/90 transition-colors cursor-pointer"
+      >
+        {t("autoRun.letItRun")}
+      </button>
+    </div>
+  );
 }
 
 function ThinkingDots({ status, elapsed }: { status: string | null; elapsed: number }) {
@@ -1175,27 +1244,33 @@ function ActivityLog({ activity, defaultExpanded, t }: { activity: ActivityEntry
 
   return (
     <div className="py-1">
-      <div className="flex items-center">
+      <div className="flex items-center gap-2">
         <button
           onClick={() => setExpanded(!expanded)}
-          className="text-xs text-text-muted hover:text-text-secondary cursor-pointer"
+          className="flex items-center gap-1.5 text-xs text-text-muted hover:text-text-secondary cursor-pointer"
         >
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="none" className={`transition-transform ${expanded ? "rotate-90" : ""}`}>
+            <path d="M3 1L7 5L3 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
           {expanded ? t("chat.hideDetails") : t("chat.showDetails")}
         </button>
+        {!expanded && (
+          <span className="text-[10px] text-text-muted/50">{activity.length} events</span>
+        )}
       </div>
       {expanded && (
         <div
           ref={logRef}
-          className="mt-2 max-h-48 overflow-y-auto rounded-lg border border-border-primary/50 bg-bg-secondary p-3 font-mono text-xs leading-relaxed"
+          className="mt-2 max-h-72 overflow-y-auto rounded-lg border border-border-primary/30 bg-[#1a1a2e] dark:bg-[#0d0d1a] p-3 font-mono text-xs leading-relaxed shadow-inner"
         >
           {activity.map((entry, i) => (
             <div key={i} className={`${
-              entry.type === "command" ? "text-accent-blue"
-              : entry.type === "error" ? "text-red-400"
-              : entry.type === "thinking" ? "text-text-muted italic"
-              : "text-text-secondary"
+              entry.type === "command" ? "text-[#64b5f6]"
+              : entry.type === "error" ? "text-[#ef5350]"
+              : entry.type === "thinking" ? "text-[#888] italic"
+              : "text-[#aaa]"
             } ${entry.type === "result" ? "pl-4 whitespace-pre-wrap" : ""}`}>
-              <span className="text-text-muted/50 mr-2">{entry.time}</span>
+              <span className="text-[#555] mr-2 select-none">{entry.time}</span>
               {entry.text}
             </div>
           ))}
@@ -1449,6 +1524,7 @@ export function ChatPanel() {
                   />
                 ));
               })()}
+              {activityLog.isPlaybook && <PlanReviewBanner />}
               {isProcessing && <ThinkingDots status={activityLog.status} elapsed={activityLog.elapsed} />}
               {activityLog.activity.length > 0 && (
                 <ActivityLog activity={activityLog.activity} defaultExpanded={activityLog.isPlaybook} t={t} />

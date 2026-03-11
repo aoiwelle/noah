@@ -8,6 +8,11 @@ import type {
 type ActiveView = "chat" | "knowledge" | "diagnostics";
 export type SessionMode = "default" | "learn";
 
+export interface PlaybookStep {
+  number: number;
+  label: string;
+}
+
 interface SessionState {
   sessionId: string | null;
   isActive: boolean;
@@ -15,6 +20,10 @@ interface SessionState {
   sessionMode: SessionMode;
   /** Session ID currently being processed by the LLM (null if idle). */
   processingSessionId: string | null;
+  /** When true, RUN_STEP actions auto-confirm without user interaction. */
+  autoRun: boolean;
+  /** Steps from the active playbook (populated on playbook_activated event). */
+  playbookSteps: PlaybookStep[];
   changes: ChangeEntry[];
   pendingApproval: ApprovalRequest | null;
   changeLogOpen: boolean;
@@ -29,6 +38,8 @@ interface SessionState {
   setSessionMode: (mode: SessionMode) => void;
   endSession: () => void;
   setProcessingSession: (id: string | null) => void;
+  setAutoRun: (on: boolean) => void;
+  setPlaybookSteps: (steps: PlaybookStep[]) => void;
   addChange: (change: ChangeEntry) => void;
   markChangeUndone: (changeId: string) => void;
   setChanges: (changes: ChangeEntry[]) => void;
@@ -62,6 +73,8 @@ export const useSessionStore = create<SessionState>((set) => ({
   isActive: false,
   sessionMode: "default",
   processingSessionId: null,
+  autoRun: false,
+  playbookSteps: [],
   changes: [],
   pendingApproval: null,
   changeLogOpen: false,
@@ -77,6 +90,8 @@ export const useSessionStore = create<SessionState>((set) => ({
       sessionId: id,
       isActive: true,
       sessionMode: "default",
+      autoRun: false,
+      playbookSteps: [],
       changes: [],
       pendingApproval: null,
     }),
@@ -87,10 +102,16 @@ export const useSessionStore = create<SessionState>((set) => ({
     set({
       isActive: false,
       sessionMode: "default",
+      autoRun: false,
+      playbookSteps: [],
       pendingApproval: null,
     }),
 
   setProcessingSession: (id) => set({ processingSessionId: id }),
+
+  setAutoRun: (on) => set({ autoRun: on }),
+
+  setPlaybookSteps: (steps) => set({ playbookSteps: steps }),
 
   addChange: (change) =>
     set((state) => ({
