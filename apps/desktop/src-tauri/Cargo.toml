@@ -10,6 +10,7 @@ default-run = "itman-desktop"
 name = "itman_desktop_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
