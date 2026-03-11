@@ -695,6 +695,22 @@ mod tests {
     }
 
     #[test]
+    fn test_platform_filtering_linux() {
+        let tmp = tempfile::tempdir().unwrap();
+        let registry = PlaybookRegistry::init_for_platform(tmp.path(), &bundled_dir(),"linux").unwrap();
+
+        // Should include linux-specific playbook.
+        assert!(registry.metas.iter().any(|m| m.name == "setup-cuda"));
+
+        // Should include cross-platform playbooks.
+        assert!(registry.metas.iter().any(|m| m.name == "outlook-troubleshooting"));
+
+        // Should NOT include macos-only or windows-only playbooks.
+        assert!(!registry.metas.iter().any(|m| m.platform == "macos"));
+        assert!(!registry.metas.iter().any(|m| m.platform == "windows"));
+    }
+
+    #[test]
     fn test_custom_windows_playbook_filtered_on_macos() {
         let tmp = tempfile::tempdir().unwrap();
         let playbooks_dir = tmp.path().join("playbooks");
